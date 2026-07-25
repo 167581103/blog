@@ -1,18 +1,7 @@
-"use client";
-
 import Link from "next/link";
-import { motion } from "framer-motion";
 import type { Article } from "@/lib/types";
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 8 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] as const },
-  },
-};
-
+/** Server-friendly list — CSS stagger, no client JS. */
 export function ArticleList({
   articles,
   isAdmin,
@@ -21,46 +10,37 @@ export function ArticleList({
   isAdmin: boolean;
 }) {
   if (!articles.length && !isAdmin) {
-    return (
-      <motion.p
-        className="muted"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.2 }}
-      >
-        No articles yet.
-      </motion.p>
-    );
+    return <p className="muted page-fade">No articles yet.</p>;
   }
 
   return (
-    <motion.ul
-      className="article-list"
-      initial="hidden"
-      animate="show"
-      variants={{
-        hidden: {},
-        show: { transition: { staggerChildren: 0.07 } },
-      }}
-    >
+    <ul className="article-list">
       {isAdmin ? (
-        <motion.li variants={itemVariants}>
-          <Link href="/articles/new" className="article-add">
+        <li className="article-list-item" style={{ ["--i" as string]: 0 }}>
+          <Link href="/articles/new" className="article-add" prefetch>
             add a new article
           </Link>
-        </motion.li>
+        </li>
       ) : null}
 
-      {articles.map((article) => (
-        <motion.li key={article.id} variants={itemVariants}>
-          <Link href={`/articles/${article.slug}`} className="article-link">
+      {articles.map((article, index) => (
+        <li
+          key={article.id}
+          className="article-list-item"
+          style={{ ["--i" as string]: isAdmin ? index + 1 : index }}
+        >
+          <Link
+            href={`/articles/${article.slug}`}
+            className="article-link"
+            prefetch
+          >
             <span>{article.title}</span>
             {isAdmin && article.status === "draft" ? (
               <span className="draft-tag">draft</span>
             ) : null}
           </Link>
-        </motion.li>
+        </li>
       ))}
-    </motion.ul>
+    </ul>
   );
 }

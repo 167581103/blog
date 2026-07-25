@@ -1,6 +1,3 @@
-"use client";
-
-import { motion } from "framer-motion";
 import type { ReactNode } from "react";
 
 type Props = {
@@ -11,6 +8,7 @@ type Props = {
   onClick?: () => void;
 };
 
+/** Lightweight button — CSS hover/tap instead of framer-motion. */
 export function IconButton({
   children,
   label,
@@ -19,18 +17,15 @@ export function IconButton({
   onClick,
 }: Props) {
   return (
-    <motion.button
+    <button
       type="button"
       aria-label={label}
       title={label}
       disabled={disabled}
       onClick={onClick}
-      whileHover={disabled ? undefined : { scale: 1.06 }}
-      whileTap={disabled ? undefined : { scale: 0.94 }}
-      transition={{ type: "spring", stiffness: 420, damping: 28 }}
-      className={`icon-btn ${className ?? ""}`}
+      className={`icon-btn icon-btn-motion ${className ?? ""}`}
     >
       {children}
-    </motion.button>
+    </button>
   );
 }

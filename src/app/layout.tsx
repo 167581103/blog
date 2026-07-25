@@ -6,12 +6,16 @@ const sora = Sora({
   variable: "--font-sora",
   subsets: ["latin"],
   weight: ["400", "500", "600"],
+  display: "swap",
+  preload: true,
 });
 
 const sourceSerif = Source_Serif_4({
   variable: "--font-source-serif",
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: ["400", "600"],
+  display: "swap",
+  preload: true,
 });
 
 export const metadata: Metadata = {

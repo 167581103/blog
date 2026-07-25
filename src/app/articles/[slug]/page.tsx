@@ -1,10 +1,12 @@
 import { notFound } from "next/navigation";
 import { PageFade } from "@/components/page-fade";
-import { Markdown } from "@/components/markdown";
 import { GiscusComments } from "@/components/giscus-comments";
 import { IconLink } from "@/components/icon-link";
 import { ShareButton } from "@/components/share-button";
-import { ReadTitle } from "@/components/read-title";
+import {
+  OptimisticArticleBody,
+  OptimisticReadTitle,
+} from "@/components/optimistic-article";
 import { ChevronLeftIcon } from "@/components/icons";
 import { requireAdmin } from "@/lib/auth";
 import { getArticle } from "@/lib/storage";
@@ -28,19 +30,21 @@ export async function generateMetadata({ params }: Props) {
 
 export default async function ArticlePage({ params }: Props) {
   const { slug } = await params;
-  const article = await getArticle(slug);
+  const [article, session] = await Promise.all([
+    getArticle(slug),
+    requireAdmin(),
+  ]);
   if (!article) notFound();
-
-  const session = await requireAdmin();
   if (article.status !== "published" && !session) notFound();
 
   return (
     <div className="read-shell">
       <header className="read-bar">
-        <IconLink href="/" label="Back">
+        <IconLink href="/" label="Back" prefetch>
           <ChevronLeftIcon className="h-5 w-5" />
         </IconLink>
-        <ReadTitle
+        <OptimisticReadTitle
+          slug={article.slug}
           title={article.title}
           editHref={session ? `/articles/${article.slug}/edit` : undefined}
         />
@@ -49,7 +53,10 @@ export default async function ArticlePage({ params }: Props) {
 
       <main className="read-body">
         <PageFade>
-          <Markdown content={article.content} />
+          <OptimisticArticleBody
+            slug={article.slug}
+            content={article.content}
+          />
           {article.status === "published" ? <GiscusComments /> : null}
         </PageFade>
       </main>
