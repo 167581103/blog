@@ -5,7 +5,7 @@ import type { ArticleStatus } from "@/lib/types";
 
 export async function GET() {
   const session = await requireAdmin();
-  const articles = await listArticles({ includeDrafts: Boolean(session) });
+  const articles = await listArticles(Boolean(session));
   return NextResponse.json(articles);
 }
 

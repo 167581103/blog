@@ -1,10 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { motion } from "framer-motion";
-import { MarkdownEditor } from "./editor/markdown-editor";
-import { IconButton } from "./icon-button";
+import { useEffect, useState, useTransition } from "react";
+import { MarkdownEditorLazy } from "./editor/markdown-editor-lazy";
 import { CheckIcon, ChevronLeftIcon } from "./icons";
 import type { HomeContent } from "@/lib/types";
 
@@ -13,10 +12,27 @@ export function HomeEditor({ home }: { home: HomeContent }) {
   const [title, setTitle] = useState(home.title);
   const [content, setContent] = useState(home.content);
   const [error, setError] = useState<string | null>(null);
+  const [statusNote, setStatusNote] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    router.prefetch("/");
+  }, [router]);
 
   function save() {
     setError(null);
+    setStatusNote("Saving…");
+    // Feel instant: go home while save completes.
+    try {
+      sessionStorage.setItem(
+        "optimistic-home",
+        JSON.stringify({ title, content, at: Date.now() }),
+      );
+    } catch {
+      // ignore
+    }
+    router.push("/");
+
     startTransition(async () => {
       const res = await fetch("/api/home", {
         method: "PUT",
@@ -27,10 +43,16 @@ export function HomeEditor({ home }: { home: HomeContent }) {
         const data = (await res.json().catch(() => null)) as {
           error?: string;
         } | null;
+        setStatusNote(null);
         setError(data?.error || "Failed to save");
+        try {
+          sessionStorage.removeItem("optimistic-home");
+        } catch {
+          // ignore
+        }
+        router.replace("/home/edit");
         return;
       }
-      router.push("/");
       router.refresh();
     });
   }
@@ -38,31 +60,38 @@ export function HomeEditor({ home }: { home: HomeContent }) {
   return (
     <div className="editor-shell">
       <header className="editor-bar">
-        <IconButton label="Back" onClick={() => router.push("/")}>
+        <Link
+          href="/"
+          prefetch
+          aria-label="Back"
+          title="Back"
+          className="icon-btn icon-btn-motion"
+        >
           <ChevronLeftIcon className="h-5 w-5" />
-        </IconButton>
-        <motion.input
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
+        </Link>
+        <input
           className="editor-title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Title"
           aria-label="Home title"
         />
-        <IconButton label="Save" disabled={pending} onClick={save}>
+        <button
+          type="button"
+          aria-label="Save"
+          title="Save"
+          disabled={pending}
+          onClick={save}
+          className="icon-btn icon-btn-motion"
+        >
           <CheckIcon className="h-5 w-5" />
-        </IconButton>
+        </button>
       </header>
-      <motion.div
-        className="editor-body"
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-      >
-        <MarkdownEditor value={content} onChange={setContent} />
+      <div className="editor-body page-fade">
+        {statusNote ? <p className="editor-status">{statusNote}</p> : null}
+        <MarkdownEditorLazy value={content} onChange={setContent} />
         {error ? <p className="form-error">{error}</p> : null}
-      </motion.div>
+      </div>
     </div>
   );
 }

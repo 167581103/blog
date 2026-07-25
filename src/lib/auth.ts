@@ -1,3 +1,4 @@
+import { cache } from "react";
 import NextAuth from "next-auth";
 import GitHub from "next-auth/providers/github";
 
@@ -38,11 +39,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
 });
 
-export async function requireAdmin() {
+/** Dedupe auth checks within a single RSC/request (metadata + page). */
+export const requireAdmin = cache(async () => {
   const session = await auth();
   const login = session?.user?.login?.toLowerCase();
   if (!session || !adminUsername || login !== adminUsername) {
     return null;
   }
   return session;
-}
+});

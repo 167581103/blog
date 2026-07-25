@@ -9,6 +9,26 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  headers: async () => [
+    {
+      source: "/(.*)",
+      headers: [
+        {
+          key: "X-DNS-Prefetch-Control",
+          value: "on",
+        },
+      ],
+    },
+    {
+      source: "/articles/:path*",
+      headers: [
+        {
+          key: "Cache-Control",
+          value: "private, no-cache, must-revalidate",
+        },
+      ],
+    },
+  ],
 };
 
 export default nextConfig;
