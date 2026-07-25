@@ -1,4 +1,5 @@
 import { list, put, del } from "@vercel/blob";
+import { getVercelOidcToken } from "@vercel/oidc";
 import { randomUUID } from "node:crypto";
 import type { Article, ArticleInput, HomeContent } from "./types";
 import { slugify } from "./slug";
@@ -10,7 +11,7 @@ function articlePath(slug: string) {
   return `${ARTICLES_PREFIX}${slug}.json`;
 }
 
-/** Prefixed store vars (e.g. blog_STORE_ID) come from Blob connect Advanced Options. */
+/** Prefixed vars (blog_*) come from Blob connect Advanced Options / store name. */
 function getStoreId(): string | undefined {
   return (
     process.env.BLOB_STORE_ID ||
@@ -19,19 +20,50 @@ function getStoreId(): string | undefined {
   );
 }
 
-function isBlobConfigured(): boolean {
-  return Boolean(process.env.BLOB_READ_WRITE_TOKEN || getStoreId());
+function getReadWriteToken(): string | undefined {
+  return (
+    process.env.BLOB_READ_WRITE_TOKEN ||
+    process.env.blog_READ_WRITE_TOKEN ||
+    process.env.BLOB_READ_WRITE_TOKEN_PUBLIC
+  );
 }
 
-function blobAuth() {
+function isBlobConfigured(): boolean {
+  return Boolean(getReadWriteToken() || getStoreId());
+}
+
+/**
+ * Prefer a static RW token (most reliable).
+ * Otherwise use OIDC + store id (new Vercel Blob default).
+ */
+async function blobAuth(): Promise<{
+  token?: string;
+  storeId?: string;
+  oidcToken?: string;
+}> {
+  const token = getReadWriteToken();
+  if (token) {
+    return { token };
+  }
+
   const storeId = getStoreId();
-  return storeId ? { storeId } : {};
+  if (!storeId) {
+    return {};
+  }
+
+  try {
+    const oidcToken = await getVercelOidcToken();
+    return { storeId, oidcToken };
+  } catch {
+    // Fall back to env-only OIDC if helper can't resolve a token.
+    return { storeId };
+  }
 }
 
 function assertBlobConfigured() {
   if (!isBlobConfigured()) {
     throw new Error(
-      "Blob is not configured. Connect a Vercel Blob store (BLOB_STORE_ID / blog_STORE_ID) or set BLOB_READ_WRITE_TOKEN.",
+      "Blob is not configured. Connect a public Vercel Blob store, or set BLOB_READ_WRITE_TOKEN.",
     );
   }
 }
@@ -44,7 +76,8 @@ async function readJson<T>(url: string): Promise<T | null> {
 
 async function findBlobUrl(pathname: string): Promise<string | null> {
   assertBlobConfigured();
-  const { blobs } = await list({ prefix: pathname, ...blobAuth() });
+  const auth = await blobAuth();
+  const { blobs } = await list({ prefix: pathname, ...auth });
   const exact = blobs.find((b) => b.pathname === pathname);
   return exact?.url ?? null;
 }
@@ -81,12 +114,13 @@ export async function saveHomeContent(
     updatedAt: new Date().toISOString(),
   };
 
+  const auth = await blobAuth();
   await put(HOME_PATH, JSON.stringify(payload, null, 2), {
     access: "public",
     addRandomSuffix: false,
     allowOverwrite: true,
     contentType: "application/json",
-    ...blobAuth(),
+    ...auth,
   });
 
   return payload;
@@ -101,7 +135,8 @@ export async function listArticles(options?: {
 
   try {
     assertBlobConfigured();
-    const { blobs } = await list({ prefix: ARTICLES_PREFIX, ...blobAuth() });
+    const auth = await blobAuth();
+    const { blobs } = await list({ prefix: ARTICLES_PREFIX, ...auth });
     const articles = (
       await Promise.all(
         blobs
@@ -165,12 +200,13 @@ export async function createArticle(input: ArticleInput): Promise<Article> {
     publishedAt: input.status === "published" ? now : null,
   };
 
+  const auth = await blobAuth();
   await put(articlePath(slug), JSON.stringify(article, null, 2), {
     access: "public",
     addRandomSuffix: false,
     allowOverwrite: true,
     contentType: "application/json",
-    ...blobAuth(),
+    ...auth,
   });
 
   return article;
@@ -201,9 +237,11 @@ export async function updateArticle(
         : existing.publishedAt,
   };
 
+  const auth = await blobAuth();
+
   if (nextSlug !== existing.slug) {
     const oldUrl = await findBlobUrl(articlePath(existing.slug));
-    if (oldUrl) await del(oldUrl, blobAuth());
+    if (oldUrl) await del(oldUrl, auth);
   }
 
   await put(articlePath(nextSlug), JSON.stringify(article, null, 2), {
@@ -211,7 +249,7 @@ export async function updateArticle(
     addRandomSuffix: false,
     allowOverwrite: true,
     contentType: "application/json",
-    ...blobAuth(),
+    ...auth,
   });
 
   return article;
@@ -221,7 +259,8 @@ export async function deleteArticle(slug: string): Promise<boolean> {
   assertBlobConfigured();
   const url = await findBlobUrl(articlePath(slug));
   if (!url) return false;
-  await del(url, blobAuth());
+  const auth = await blobAuth();
+  await del(url, auth);
   return true;
 }
 
@@ -234,10 +273,11 @@ export async function uploadMedia(
     ? filename.slice(filename.lastIndexOf("."))
     : "";
   const pathname = `uploads/${randomUUID()}${ext}`;
+  const auth = await blobAuth();
   const blob = await put(pathname, file, {
     access: "public",
     addRandomSuffix: false,
-    ...blobAuth(),
+    ...auth,
   });
   return blob.url;
 }

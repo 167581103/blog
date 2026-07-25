@@ -23,9 +23,10 @@ Personal blog — read publicly, write when signed in with the owner GitHub acco
 ## Deploy on Vercel
 
 1. Import this repo in Vercel.
-2. Add a **Blob** store (Storage → Blob) and connect it to this project.
-   - Newer setup creates `BLOB_STORE_ID` or `blog_STORE_ID` (OIDC; enough on Vercel).
-   - Optional static token: Blob store → **Settings / Tokens** → create read-write token as `BLOB_READ_WRITE_TOKEN`.
+2. Add a **public** Blob store (Storage → Blob) and connect it to this project.
+   - Store access must be **Public** (not Private).
+   - Most reliable: Blob store → **Settings → Tokens** → create a read-write token → set env `BLOB_READ_WRITE_TOKEN` for Production + Preview → Redeploy.
+   - Or use OIDC (`BLOB_STORE_ID` / `blog_STORE_ID`). Remove any old token from a disconnected/private store first.
 3. Create a GitHub OAuth App:
    - Homepage: your Vercel URL
    - Callback: `https://<your-domain>/api/auth/callback/github`
