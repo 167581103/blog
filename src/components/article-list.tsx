@@ -4,6 +4,15 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import type { Article } from "@/lib/types";
 
+const itemVariants = {
+  hidden: { opacity: 0, y: 8 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] as const },
+  },
+};
+
 export function ArticleList({
   articles,
   isAdmin,
@@ -11,7 +20,7 @@ export function ArticleList({
   articles: Article[];
   isAdmin: boolean;
 }) {
-  if (!articles.length) {
+  if (!articles.length && !isAdmin) {
     return (
       <motion.p
         className="muted"
@@ -34,18 +43,16 @@ export function ArticleList({
         show: { transition: { staggerChildren: 0.07 } },
       }}
     >
+      {isAdmin ? (
+        <motion.li variants={itemVariants}>
+          <Link href="/articles/new" className="article-add">
+            add a new article
+          </Link>
+        </motion.li>
+      ) : null}
+
       {articles.map((article) => (
-        <motion.li
-          key={article.id}
-          variants={{
-            hidden: { opacity: 0, y: 8 },
-            show: {
-              opacity: 1,
-              y: 0,
-              transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] },
-            },
-          }}
-        >
+        <motion.li key={article.id} variants={itemVariants}>
           <Link href={`/articles/${article.slug}`} className="article-link">
             <span>{article.title}</span>
             {isAdmin && article.status === "draft" ? (

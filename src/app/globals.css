@@ -64,6 +64,15 @@ textarea {
   margin: 0;
 }
 
+.brand-link {
+  display: inline-block;
+  transition: opacity 0.25s ease;
+}
+
+.brand-link:hover {
+  opacity: 0.55;
+}
+
 .lead-prose {
   margin: 1.25rem 0 0;
   max-width: 36rem;
@@ -78,12 +87,6 @@ textarea {
 .lead-prose.prose-blog h2,
 .lead-prose.prose-blog h3 {
   color: var(--foreground);
-}
-
-.home-actions {
-  display: flex;
-  gap: 0.75rem;
-  margin-top: 1.75rem;
 }
 
 .article-list {
@@ -107,6 +110,25 @@ textarea {
 .article-link:hover {
   opacity: 0.55;
   transform: translateX(2px);
+}
+
+.article-add {
+  display: block;
+  padding: 0.95rem 1rem;
+  margin-bottom: 0.35rem;
+  border: 1px dashed #c8c8c8;
+  color: var(--muted);
+  letter-spacing: -0.01em;
+  transition:
+    color 0.25s ease,
+    border-color 0.25s ease,
+    background-color 0.25s ease;
+}
+
+.article-add:hover {
+  color: var(--foreground);
+  border-color: var(--foreground);
+  background: rgba(0, 0, 0, 0.015);
 }
 
 .article-link span:first-child {
