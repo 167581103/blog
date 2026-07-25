@@ -83,15 +83,20 @@ textarea {
 .home-actions {
   display: flex;
   gap: 0.75rem;
-  margin-top: 1.75rem;
+  margin-top: 2.5rem;
 }
 
 .article-list {
   list-style: none;
-  margin: 3.5rem 0 0;
+  margin: 1.25rem 0 0;
   padding: 0;
   display: grid;
   gap: 0.25rem;
+}
+
+/* Keep list spacing consistent when admin actions are hidden */
+.lead-prose + .article-list {
+  margin-top: 3.5rem;
 }
 
 .article-link {

@@ -18,8 +18,11 @@ export default async function HomePage() {
   return (
     <main className="site-shell">
       <PageFade>
+        <h1 className="brand">{home.title}</h1>
+        <Markdown content={home.content} className="prose-blog lead-prose" />
+
         {session ? (
-          <div className="home-actions" style={{ marginTop: 0, marginBottom: "0.75rem" }}>
+          <div className="home-actions">
             <IconLink href="/home/edit" label="Edit home">
               <PencilIcon className="h-5 w-5" />
             </IconLink>
@@ -28,9 +31,6 @@ export default async function HomePage() {
             </IconLink>
           </div>
         ) : null}
-
-        <h1 className="brand">{home.title}</h1>
-        <Markdown content={home.content} className="prose-blog lead-prose" />
 
         <ArticleList articles={articles} isAdmin={Boolean(session)} />
       </PageFade>
