@@ -6,12 +6,17 @@ import { slugify } from "./slug";
 
 const ARTICLES_PREFIX = "articles/";
 const HOME_PATH = "site/home.json";
+const INDEX_PATH = "articles/index.json";
+
+/** Article JSON must revalidate quickly; Blob min cache is 60s. */
+const ARTICLE_CACHE_MAX_AGE = 60;
+/** Uploaded media can stay cached longer. */
+const MEDIA_CACHE_MAX_AGE = 60 * 60 * 24 * 30;
 
 function articlePath(slug: string) {
   return `${ARTICLES_PREFIX}${slug}.json`;
 }
 
-/** Prefixed vars (blog_*) come from Blob connect Advanced Options / store name. */
 function getStoreId(): string | undefined {
   return (
     process.env.BLOB_STORE_ID ||
@@ -32,30 +37,21 @@ function isBlobConfigured(): boolean {
   return Boolean(getReadWriteToken() || getStoreId());
 }
 
-/**
- * Prefer a static RW token (most reliable).
- * Otherwise use OIDC + store id (new Vercel Blob default).
- */
 async function blobAuth(): Promise<{
   token?: string;
   storeId?: string;
   oidcToken?: string;
 }> {
   const token = getReadWriteToken();
-  if (token) {
-    return { token };
-  }
+  if (token) return { token };
 
   const storeId = getStoreId();
-  if (!storeId) {
-    return {};
-  }
+  if (!storeId) return {};
 
   try {
     const oidcToken = await getVercelOidcToken();
     return { storeId, oidcToken };
   } catch {
-    // Fall back to env-only OIDC if helper can't resolve a token.
     return { storeId };
   }
 }
@@ -68,18 +64,106 @@ function assertBlobConfigured() {
   }
 }
 
-async function readJson<T>(url: string): Promise<T | null> {
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) return null;
-  return (await res.json()) as T;
-}
+type BlobHit = {
+  url: string;
+  pathname: string;
+  uploadedAt: Date;
+};
 
-async function findBlobUrl(pathname: string): Promise<string | null> {
+async function findBlob(pathname: string): Promise<BlobHit | null> {
   assertBlobConfigured();
   const auth = await blobAuth();
   const { blobs } = await list({ prefix: pathname, ...auth });
   const exact = blobs.find((b) => b.pathname === pathname);
-  return exact?.url ?? null;
+  if (!exact) return null;
+  return {
+    url: exact.url,
+    pathname: exact.pathname,
+    uploadedAt: exact.uploadedAt,
+  };
+}
+
+/** Bust Blob CDN cache — overwrites keep the same URL and default TTL is ~1 month. */
+async function readJson<T>(url: string, bust?: string | number): Promise<T | null> {
+  const separator = url.includes("?") ? "&" : "?";
+  const target = bust != null ? `${url}${separator}v=${bust}` : url;
+  const res = await fetch(target, { cache: "no-store" });
+  if (!res.ok) return null;
+  return (await res.json()) as T;
+}
+
+async function putJson(pathname: string, data: unknown) {
+  const auth = await blobAuth();
+  return put(pathname, JSON.stringify(data, null, 2), {
+    access: "public",
+    addRandomSuffix: false,
+    allowOverwrite: true,
+    contentType: "application/json",
+    cacheControlMaxAge: ARTICLE_CACHE_MAX_AGE,
+    ...auth,
+  });
+}
+
+type ArticleIndexItem = {
+  slug: string;
+  title: string;
+  status: Article["status"];
+  updatedAt: string;
+  publishedAt: string | null;
+  url: string;
+};
+
+async function readIndex(): Promise<ArticleIndexItem[] | null> {
+  const hit = await findBlob(INDEX_PATH);
+  if (!hit) return null;
+  return readJson<ArticleIndexItem[]>(
+    hit.url,
+    hit.uploadedAt.getTime(),
+  );
+}
+
+async function writeIndex(articles: Article[], urls: Record<string, string>) {
+  const items: ArticleIndexItem[] = articles
+    .map((a) => ({
+      slug: a.slug,
+      title: a.title,
+      status: a.status,
+      updatedAt: a.updatedAt,
+      publishedAt: a.publishedAt,
+      url: urls[a.slug] || "",
+    }))
+    .filter((a) => a.url)
+    .sort((a, b) => {
+      const aTime = a.publishedAt ?? a.updatedAt;
+      const bTime = b.publishedAt ?? b.updatedAt;
+      return bTime.localeCompare(aTime);
+    });
+  await putJson(INDEX_PATH, items);
+}
+
+async function rebuildIndexFromBlobs(): Promise<Article[]> {
+  const auth = await blobAuth();
+  const { blobs } = await list({ prefix: ARTICLES_PREFIX, ...auth });
+  const articleBlobs = blobs.filter(
+    (b) => b.pathname.endsWith(".json") && b.pathname !== INDEX_PATH,
+  );
+  const articles = (
+    await Promise.all(
+      articleBlobs.map(async (b) => {
+        const data = await readJson<Article>(b.url, b.uploadedAt.getTime());
+        return data ? { article: data, url: b.url } : null;
+      }),
+    )
+  ).filter((x): x is { article: Article; url: string } => Boolean(x));
+
+  const listArticles = articles.map((x) => x.article);
+  const urls = Object.fromEntries(articles.map((x) => [x.article.slug, x.url]));
+  try {
+    await writeIndex(listArticles, urls);
+  } catch {
+    // index write is best-effort
+  }
+  return listArticles;
 }
 
 export async function getHomeContent(): Promise<HomeContent> {
@@ -90,14 +174,12 @@ export async function getHomeContent(): Promise<HomeContent> {
     updatedAt: new Date(0).toISOString(),
   };
 
-  if (!isBlobConfigured()) {
-    return fallback;
-  }
+  if (!isBlobConfigured()) return fallback;
 
   try {
-    const url = await findBlobUrl(HOME_PATH);
-    if (!url) return fallback;
-    const data = await readJson<HomeContent>(url);
+    const hit = await findBlob(HOME_PATH);
+    if (!hit) return fallback;
+    const data = await readJson<HomeContent>(hit.url, hit.uploadedAt.getTime());
     return data ?? fallback;
   } catch {
     return fallback;
@@ -113,37 +195,34 @@ export async function saveHomeContent(
     content: input.content,
     updatedAt: new Date().toISOString(),
   };
-
-  const auth = await blobAuth();
-  await put(HOME_PATH, JSON.stringify(payload, null, 2), {
-    access: "public",
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    contentType: "application/json",
-    ...auth,
-  });
-
+  await putJson(HOME_PATH, payload);
   return payload;
 }
 
 export async function listArticles(options?: {
   includeDrafts?: boolean;
 }): Promise<Article[]> {
-  if (!isBlobConfigured()) {
-    return [];
-  }
+  if (!isBlobConfigured()) return [];
 
   try {
-    assertBlobConfigured();
-    const auth = await blobAuth();
-    const { blobs } = await list({ prefix: ARTICLES_PREFIX, ...auth });
-    const articles = (
-      await Promise.all(
-        blobs
-          .filter((b) => b.pathname.endsWith(".json"))
-          .map(async (b) => readJson<Article>(b.url)),
-      )
-    ).filter((a): a is Article => Boolean(a));
+    const index = await readIndex();
+    let articles: Article[];
+
+    if (index?.length) {
+      // Index holds enough fields for the home list; hydrate lightly.
+      articles = index.map((item) => ({
+        id: item.slug,
+        slug: item.slug,
+        title: item.title,
+        content: "",
+        status: item.status,
+        createdAt: item.updatedAt,
+        updatedAt: item.updatedAt,
+        publishedAt: item.publishedAt,
+      }));
+    } else {
+      articles = await rebuildIndexFromBlobs();
+    }
 
     const visible = options?.includeDrafts
       ? articles
@@ -163,9 +242,17 @@ export async function getArticle(slug: string): Promise<Article | null> {
   if (!isBlobConfigured()) return null;
 
   try {
-    const url = await findBlobUrl(articlePath(slug));
-    if (!url) return null;
-    return await readJson<Article>(url);
+    // Prefer index URL (1 list for index + 1 fetch) then fallback to direct path.
+    const index = await readIndex();
+    const indexed = index?.find((i) => i.slug === slug);
+    if (indexed?.url) {
+      const data = await readJson<Article>(indexed.url, indexed.updatedAt);
+      if (data) return data;
+    }
+
+    const hit = await findBlob(articlePath(slug));
+    if (!hit) return null;
+    return await readJson<Article>(hit.url, hit.uploadedAt.getTime());
   } catch {
     return null;
   }
@@ -174,13 +261,38 @@ export async function getArticle(slug: string): Promise<Article | null> {
 async function ensureUniqueSlug(base: string, exclude?: string): Promise<string> {
   let candidate = base;
   let i = 2;
+  const index = (await readIndex()) || [];
+  const taken = new Set(index.map((a) => a.slug));
+
   while (true) {
     if (candidate === exclude) return candidate;
-    const existing = await getArticle(candidate);
-    if (!existing) return candidate;
+    if (!taken.has(candidate)) {
+      // Double-check blob in case index is stale.
+      const existing = await findBlob(articlePath(candidate));
+      if (!existing || candidate === exclude) return candidate;
+    }
     candidate = `${base}-${i}`;
     i += 1;
   }
+}
+
+async function upsertIndexEntry(article: Article, url: string) {
+  const index = (await readIndex()) || [];
+  const next = index.filter((i) => i.slug !== article.slug);
+  next.push({
+    slug: article.slug,
+    title: article.title,
+    status: article.status,
+    updatedAt: article.updatedAt,
+    publishedAt: article.publishedAt,
+    url,
+  });
+  next.sort((a, b) => {
+    const aTime = a.publishedAt ?? a.updatedAt;
+    const bTime = b.publishedAt ?? b.updatedAt;
+    return bTime.localeCompare(aTime);
+  });
+  await putJson(INDEX_PATH, next);
 }
 
 export async function createArticle(input: ArticleInput): Promise<Article> {
@@ -200,15 +312,8 @@ export async function createArticle(input: ArticleInput): Promise<Article> {
     publishedAt: input.status === "published" ? now : null,
   };
 
-  const auth = await blobAuth();
-  await put(articlePath(slug), JSON.stringify(article, null, 2), {
-    access: "public",
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    contentType: "application/json",
-    ...auth,
-  });
-
+  const result = await putJson(articlePath(slug), article);
+  await upsertIndexEntry(article, result.url);
   return article;
 }
 
@@ -240,27 +345,32 @@ export async function updateArticle(
   const auth = await blobAuth();
 
   if (nextSlug !== existing.slug) {
-    const oldUrl = await findBlobUrl(articlePath(existing.slug));
-    if (oldUrl) await del(oldUrl, auth);
+    const old = await findBlob(articlePath(existing.slug));
+    if (old) await del(old.url, auth);
+    // Drop old slug from index
+    const index = (await readIndex()) || [];
+    await putJson(
+      INDEX_PATH,
+      index.filter((i) => i.slug !== existing.slug),
+    );
   }
 
-  await put(articlePath(nextSlug), JSON.stringify(article, null, 2), {
-    access: "public",
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    contentType: "application/json",
-    ...auth,
-  });
-
+  const result = await putJson(articlePath(nextSlug), article);
+  await upsertIndexEntry(article, result.url);
   return article;
 }
 
 export async function deleteArticle(slug: string): Promise<boolean> {
   assertBlobConfigured();
-  const url = await findBlobUrl(articlePath(slug));
-  if (!url) return false;
+  const hit = await findBlob(articlePath(slug));
+  if (!hit) return false;
   const auth = await blobAuth();
-  await del(url, auth);
+  await del(hit.url, auth);
+  const index = (await readIndex()) || [];
+  await putJson(
+    INDEX_PATH,
+    index.filter((i) => i.slug !== slug),
+  );
   return true;
 }
 
@@ -277,6 +387,7 @@ export async function uploadMedia(
   const blob = await put(pathname, file, {
     access: "public",
     addRandomSuffix: false,
+    cacheControlMaxAge: MEDIA_CACHE_MAX_AGE,
     ...auth,
   });
   return blob.url;

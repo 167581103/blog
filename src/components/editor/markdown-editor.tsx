@@ -14,6 +14,7 @@ type Props = {
   value: string;
   onChange: (markdown: string) => void;
   placeholder?: string;
+  onUploadingChange?: (uploading: boolean) => void;
 };
 
 async function uploadFile(file: File): Promise<string> {
@@ -64,7 +65,6 @@ function insertImages(view: EditorView, urls: { src: string; alt: string }[]) {
       altRight: urls[1].alt,
     });
     tr = tr.replaceSelectionWith(node).scrollIntoView();
-    // remaining images as centered singles after
     let insertPos = tr.selection.to;
     for (const extra of urls.slice(2)) {
       const single = image.create({
@@ -88,7 +88,66 @@ function insertImages(view: EditorView, urls: { src: string; alt: string }[]) {
   view.dispatch(tr);
 }
 
-export function MarkdownEditor({ value, onChange, placeholder }: Props) {
+function replaceSrc(view: EditorView, from: string, to: string) {
+  let tr = view.state.tr;
+  let changed = false;
+  view.state.doc.descendants((node, pos) => {
+    if (node.type.name === "image" && node.attrs.src === from) {
+      tr = tr.setNodeMarkup(pos, undefined, { ...node.attrs, src: to });
+      changed = true;
+    }
+    if (node.type.name === "imageCompare") {
+      const next = { ...node.attrs };
+      if (next.srcLeft === from) next.srcLeft = to;
+      if (next.srcRight === from) next.srcRight = to;
+      if (next.srcLeft !== node.attrs.srcLeft || next.srcRight !== node.attrs.srcRight) {
+        tr = tr.setNodeMarkup(pos, undefined, next);
+        changed = true;
+      }
+    }
+  });
+  if (changed) view.dispatch(tr);
+}
+
+async function pasteOrDropImages(
+  view: EditorView,
+  files: File[],
+  onUploadingChange?: (uploading: boolean) => void,
+) {
+  // Show local previews immediately, then swap to Blob URLs after upload.
+  const locals = files.map((file) => ({
+    file,
+    src: URL.createObjectURL(file),
+    alt: file.name,
+  }));
+  insertImages(
+    view,
+    locals.map((l) => ({ src: l.src, alt: l.alt })),
+  );
+
+  onUploadingChange?.(true);
+  try {
+    for (const local of locals) {
+      try {
+        const remote = await uploadFile(local.file);
+        replaceSrc(view, local.src, remote);
+      } catch {
+        // keep local preview if upload fails
+      } finally {
+        URL.revokeObjectURL(local.src);
+      }
+    }
+  } finally {
+    onUploadingChange?.(false);
+  }
+}
+
+export function MarkdownEditor({
+  value,
+  onChange,
+  placeholder,
+  onUploadingChange,
+}: Props) {
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
@@ -121,36 +180,14 @@ export function MarkdownEditor({ value, onChange, placeholder }: Props) {
         const files = collectImageFiles(event.clipboardData?.items);
         if (!files.length) return false;
         event.preventDefault();
-        void (async () => {
-          const uploaded: { src: string; alt: string }[] = [];
-          for (const file of files) {
-            try {
-              const src = await uploadFile(file);
-              uploaded.push({ src, alt: file.name });
-            } catch {
-              // skip failed upload
-            }
-          }
-          insertImages(view, uploaded);
-        })();
+        void pasteOrDropImages(view, files, onUploadingChange);
         return true;
       },
       handleDrop: (view, event) => {
         const files = collectImageFiles(event.dataTransfer?.files);
         if (!files.length) return false;
         event.preventDefault();
-        void (async () => {
-          const uploaded: { src: string; alt: string }[] = [];
-          for (const file of files) {
-            try {
-              const src = await uploadFile(file);
-              uploaded.push({ src, alt: file.name });
-            } catch {
-              // skip
-            }
-          }
-          insertImages(view, uploaded);
-        })();
+        void pasteOrDropImages(view, files, onUploadingChange);
         return true;
       },
     },
