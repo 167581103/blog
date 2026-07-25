@@ -10,9 +10,29 @@ function articlePath(slug: string) {
   return `${ARTICLES_PREFIX}${slug}.json`;
 }
 
+/** Prefixed store vars (e.g. blog_STORE_ID) come from Blob connect Advanced Options. */
+function getStoreId(): string | undefined {
+  return (
+    process.env.BLOB_STORE_ID ||
+    process.env.blog_STORE_ID ||
+    process.env.BLOB_STOREID
+  );
+}
+
+function isBlobConfigured(): boolean {
+  return Boolean(process.env.BLOB_READ_WRITE_TOKEN || getStoreId());
+}
+
+function blobAuth() {
+  const storeId = getStoreId();
+  return storeId ? { storeId } : {};
+}
+
 function assertBlobConfigured() {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
-    throw new Error("BLOB_READ_WRITE_TOKEN is not configured");
+  if (!isBlobConfigured()) {
+    throw new Error(
+      "Blob is not configured. Connect a Vercel Blob store (BLOB_STORE_ID / blog_STORE_ID) or set BLOB_READ_WRITE_TOKEN.",
+    );
   }
 }
 
@@ -24,7 +44,7 @@ async function readJson<T>(url: string): Promise<T | null> {
 
 async function findBlobUrl(pathname: string): Promise<string | null> {
   assertBlobConfigured();
-  const { blobs } = await list({ prefix: pathname });
+  const { blobs } = await list({ prefix: pathname, ...blobAuth() });
   const exact = blobs.find((b) => b.pathname === pathname);
   return exact?.url ?? null;
 }
@@ -37,7 +57,7 @@ export async function getHomeContent(): Promise<HomeContent> {
     updatedAt: new Date(0).toISOString(),
   };
 
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+  if (!isBlobConfigured()) {
     return fallback;
   }
 
@@ -66,6 +86,7 @@ export async function saveHomeContent(
     addRandomSuffix: false,
     allowOverwrite: true,
     contentType: "application/json",
+    ...blobAuth(),
   });
 
   return payload;
@@ -74,13 +95,13 @@ export async function saveHomeContent(
 export async function listArticles(options?: {
   includeDrafts?: boolean;
 }): Promise<Article[]> {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+  if (!isBlobConfigured()) {
     return [];
   }
 
   try {
     assertBlobConfigured();
-    const { blobs } = await list({ prefix: ARTICLES_PREFIX });
+    const { blobs } = await list({ prefix: ARTICLES_PREFIX, ...blobAuth() });
     const articles = (
       await Promise.all(
         blobs
@@ -104,7 +125,7 @@ export async function listArticles(options?: {
 }
 
 export async function getArticle(slug: string): Promise<Article | null> {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) return null;
+  if (!isBlobConfigured()) return null;
 
   try {
     const url = await findBlobUrl(articlePath(slug));
@@ -149,6 +170,7 @@ export async function createArticle(input: ArticleInput): Promise<Article> {
     addRandomSuffix: false,
     allowOverwrite: true,
     contentType: "application/json",
+    ...blobAuth(),
   });
 
   return article;
@@ -181,7 +203,7 @@ export async function updateArticle(
 
   if (nextSlug !== existing.slug) {
     const oldUrl = await findBlobUrl(articlePath(existing.slug));
-    if (oldUrl) await del(oldUrl);
+    if (oldUrl) await del(oldUrl, blobAuth());
   }
 
   await put(articlePath(nextSlug), JSON.stringify(article, null, 2), {
@@ -189,6 +211,7 @@ export async function updateArticle(
     addRandomSuffix: false,
     allowOverwrite: true,
     contentType: "application/json",
+    ...blobAuth(),
   });
 
   return article;
@@ -198,7 +221,7 @@ export async function deleteArticle(slug: string): Promise<boolean> {
   assertBlobConfigured();
   const url = await findBlobUrl(articlePath(slug));
   if (!url) return false;
-  await del(url);
+  await del(url, blobAuth());
   return true;
 }
 
@@ -214,6 +237,7 @@ export async function uploadMedia(
   const blob = await put(pathname, file, {
     access: "public",
     addRandomSuffix: false,
+    ...blobAuth(),
   });
   return blob.url;
 }
