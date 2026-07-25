@@ -2,6 +2,23 @@ import { cache } from "react";
 import NextAuth from "next-auth";
 import GitHub from "next-auth/providers/github";
 
+/**
+ * Auth.js requires a full absolute URL. People often set AUTH_URL=chenguo.dev
+ * (hostname only), which throws TypeError: Invalid URL and takes down every
+ * page that calls auth() — including the public homepage.
+ */
+function normalizeAuthUrl() {
+  const raw = process.env.AUTH_URL?.trim();
+  if (!raw) return;
+  if (/^https?:\/\//i.test(raw)) {
+    process.env.AUTH_URL = raw.replace(/\/+$/, "");
+    return;
+  }
+  process.env.AUTH_URL = `https://${raw.replace(/\/+$/, "")}`;
+}
+
+normalizeAuthUrl();
+
 const adminUsername = process.env.ADMIN_GITHUB_USERNAME?.toLowerCase();
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -41,10 +58,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
 /** Dedupe auth checks within a single RSC/request (metadata + page). */
 export const requireAdmin = cache(async () => {
-  const session = await auth();
-  const login = session?.user?.login?.toLowerCase();
-  if (!session || !adminUsername || login !== adminUsername) {
+  try {
+    const session = await auth();
+    const login = session?.user?.login?.toLowerCase();
+    if (!session || !adminUsername || login !== adminUsername) {
+      return null;
+    }
+    return session;
+  } catch (error) {
+    // Misconfigured AUTH_URL / AUTH_SECRET must not blank the public site.
+    console.error("[auth] requireAdmin failed:", error);
     return null;
   }
-  return session;
 });
