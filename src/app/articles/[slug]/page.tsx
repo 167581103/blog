@@ -59,7 +59,9 @@ export default async function ArticlePage({ params }: Props) {
             title={article.title}
             content={article.content}
           />
-          {article.status === "published" ? <GiscusComments /> : null}
+          {article.status === "published" ? (
+            <GiscusComments showSetupHint={Boolean(session)} />
+          ) : null}
         </PageFade>
       </main>
     </div>

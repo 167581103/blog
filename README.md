@@ -41,12 +41,13 @@ Personal blog — read publicly, write when signed in with the owner GitHub acco
 
 ### Giscus comments
 
-1. Enable **Discussions** on the GitHub repo.
-2. Open [giscus.app](https://giscus.app), select the repo/category, copy the IDs into:
-   - `NEXT_PUBLIC_GISCUS_REPO`
-   - `NEXT_PUBLIC_GISCUS_REPO_ID`
-   - `NEXT_PUBLIC_GISCUS_CATEGORY`
-   - `NEXT_PUBLIC_GISCUS_CATEGORY_ID`
+Published articles show a **Comments** block at the bottom of the article body
+(Giscus / GitHub Discussions). Defaults for `167581103/blog` + `Announcements`
+are baked into the app; env overrides are optional.
+
+1. Enable **Discussions** on the GitHub repo (required once).
+2. Optional: override `NEXT_PUBLIC_GISCUS_*` on Vercel if you change category.
+3. Redeploy after changing env (public vars are inlined at build time).
 
 Visitors sign in with GitHub through Giscus to comment.
 
