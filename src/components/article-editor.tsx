@@ -22,7 +22,6 @@ export function ArticleEditor({ mode, article, backHref = "/" }: Props) {
   const [uploading, setUploading] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  // Warm the back / read route while editing.
   useEffect(() => {
     router.prefetch(backHref);
     if (article?.slug) {
@@ -39,27 +38,6 @@ export function ArticleEditor({ mode, article, backHref = "/" }: Props) {
       }
       setError(null);
       setStatusNote(nextStatus === "published" ? "Publishing…" : "Saving…");
-
-      const knownSlug = article?.slug;
-      const canOptimisticNav =
-        nextStatus === "published" && mode === "edit" && Boolean(knownSlug);
-
-      // Instant publish feel: navigate first, persist in background.
-      if (canOptimisticNav && knownSlug) {
-        try {
-          sessionStorage.setItem(
-            `optimistic-article:${knownSlug}`,
-            JSON.stringify({
-              title,
-              content,
-              at: Date.now(),
-            }),
-          );
-        } catch {
-          // ignore quota / private mode
-        }
-        router.push(`/articles/${knownSlug}?v=${Date.now()}`);
-      }
 
       startTransition(async () => {
         const payload = {
@@ -87,14 +65,6 @@ export function ArticleEditor({ mode, article, backHref = "/" }: Props) {
           setError(
             (data && "error" in data && data.error) || "Failed to save article",
           );
-          if (canOptimisticNav && knownSlug) {
-            try {
-              sessionStorage.removeItem(`optimistic-article:${knownSlug}`);
-            } catch {
-              // ignore
-            }
-            router.replace(`/articles/${knownSlug}/edit`);
-          }
           return;
         }
 
@@ -102,13 +72,20 @@ export function ArticleEditor({ mode, article, backHref = "/" }: Props) {
         setStatusNote(nextStatus === "published" ? "Published" : "Saved");
 
         if (nextStatus === "published") {
-          if (!canOptimisticNav) {
-            router.push(`/articles/${saved.slug}?v=${Date.now()}`);
-          } else if (saved.slug !== knownSlug) {
-            router.replace(`/articles/${saved.slug}?v=${Date.now()}`);
-          } else {
-            router.refresh();
+          try {
+            sessionStorage.setItem(
+              `optimistic-article:${saved.slug}`,
+              JSON.stringify({
+                title,
+                content,
+                at: Date.now(),
+              }),
+            );
+          } catch {
+            // ignore
           }
+          router.push(`/articles/${saved.slug}?v=${Date.now()}`);
+          router.refresh();
           return;
         }
 
