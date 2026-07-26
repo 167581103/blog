@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { MarkdownEditorLazy } from "./editor/markdown-editor-lazy";
-import { CheckIcon, ChevronLeftIcon } from "./icons";
+import { MarkdownEditorLazy } from "../editor/markdown-editor-lazy";
+import { CheckIcon, ChevronLeftIcon } from "../chrome/icons";
 import type { HomeContent, ResumeInfo } from "@/lib/types";
 
 export function HomeEditor({

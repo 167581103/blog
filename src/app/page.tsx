@@ -1,6 +1,6 @@
-import { PageFade } from "@/components/page-fade";
-import { ArticleList } from "@/components/article-list";
-import { OptimisticHome } from "@/components/optimistic-home";
+import { PageFade } from "@/components/chrome/page-fade";
+import { ArticleList } from "@/components/article/article-list";
+import { OptimisticHome } from "@/components/home/optimistic-home";
 import { requireAdmin } from "@/lib/auth";
 import { getHomeContent, listArticles } from "@/lib/storage";
 

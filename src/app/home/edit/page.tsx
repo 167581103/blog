@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { HomeEditor } from "@/components/home-editor";
+import { HomeEditor } from "@/components/home/home-editor";
 import { requireAdmin } from "@/lib/auth";
 import { getHomeContent, getResumeInfo } from "@/lib/storage";
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { BrandTitle } from "./brand-title";
-import { Markdown } from "./markdown";
+import { Markdown } from "../markdown";
 
 type Optimistic = { title: string; content: string; at: number };
 

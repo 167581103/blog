@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, useTransition } from "react";
-import { MarkdownEditorLazy } from "./editor/markdown-editor-lazy";
-import { CheckIcon, ChevronLeftIcon } from "./icons";
+import { MarkdownEditorLazy } from "../editor/markdown-editor-lazy";
+import { CheckIcon, ChevronLeftIcon } from "../chrome/icons";
 import type { Article, ArticleStatus } from "@/lib/types";
 
 type Props = {

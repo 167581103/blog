@@ -1,13 +1,13 @@
 import { notFound } from "next/navigation";
-import { PageFade } from "@/components/page-fade";
-import { GiscusComments } from "@/components/giscus-comments";
-import { IconLink } from "@/components/icon-link";
-import { ShareButton } from "@/components/share-button";
+import { PageFade } from "@/components/chrome/page-fade";
+import { GiscusComments } from "@/components/chrome/giscus-comments";
+import { IconLink } from "@/components/chrome/icon-link";
+import { ShareButton } from "@/components/chrome/share-button";
 import {
   OptimisticArticleBody,
   OptimisticReadTitle,
-} from "@/components/optimistic-article";
-import { ChevronLeftIcon } from "@/components/icons";
+} from "@/components/article/optimistic-article";
+import { ChevronLeftIcon } from "@/components/chrome/icons";
 import { requireAdmin } from "@/lib/auth";
 import { getArticle } from "@/lib/storage";
 
