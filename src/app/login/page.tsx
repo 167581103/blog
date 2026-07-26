@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth, signIn } from "@/lib/auth";
-import { PageFade } from "@/components/page-fade";
+import { PageFade } from "@/components/chrome/page-fade";
 
 export const dynamic = "force-dynamic";
 

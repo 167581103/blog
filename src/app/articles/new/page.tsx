@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { ArticleEditor } from "@/components/article-editor";
+import { ArticleEditor } from "@/components/article/article-editor";
 import { requireAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";

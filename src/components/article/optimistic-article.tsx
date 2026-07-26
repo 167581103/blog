@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Markdown } from "./markdown";
+import { Markdown } from "../markdown";
 import { ReadTitle } from "./read-title";
 
 type Optimistic = { title: string; content: string; at: number };
