@@ -41,14 +41,20 @@ Personal blog — read publicly, write when signed in with the owner GitHub acco
 
 ### Giscus comments
 
-1. Enable **Discussions** on the GitHub repo.
-2. Open [giscus.app](https://giscus.app), select the repo/category, copy the IDs into:
-   - `NEXT_PUBLIC_GISCUS_REPO`
-   - `NEXT_PUBLIC_GISCUS_REPO_ID`
-   - `NEXT_PUBLIC_GISCUS_CATEGORY`
-   - `NEXT_PUBLIC_GISCUS_CATEGORY_ID`
+Published articles always show a **Comments** section. The widget only loads
+after category env vars are set.
 
-Visitors sign in with GitHub through Giscus to comment.
+1. On the GitHub repo → **Settings** → enable **Discussions**.
+2. Open [giscus.app](https://giscus.app), select `167581103/blog` and a category
+   (e.g. Announcements / General).
+3. Set these on Vercel (Production + Preview), then **Redeploy**:
+   - `NEXT_PUBLIC_GISCUS_REPO` = `167581103/blog` (optional; defaulted in code)
+   - `NEXT_PUBLIC_GISCUS_REPO_ID` = `R_kgDOTgQRdw` (optional; defaulted in code)
+   - `NEXT_PUBLIC_GISCUS_CATEGORY` = category **name** from giscus.app
+   - `NEXT_PUBLIC_GISCUS_CATEGORY_ID` = category **id** from giscus.app
+
+Visitors sign in with GitHub through Giscus to comment. While signed in as
+admin with incomplete config, the article page shows setup steps under Comments.
 
 ## Local development
 
