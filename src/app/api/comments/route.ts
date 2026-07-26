@@ -13,12 +13,12 @@ export async function GET(request: Request) {
   if (!slug) {
     return NextResponse.json({ error: "Missing slug" }, { status: 400 });
   }
-  if (!isDbConfigured()) {
-    return NextResponse.json({ comments: [], configured: false });
-  }
-
-  const comments = await listComments(slug);
-  return NextResponse.json({ comments, configured: true });
+  const result = await listComments(slug);
+  return NextResponse.json({
+    comments: result.comments,
+    configured: result.ready,
+    error: result.error,
+  });
 }
 
 export async function POST(request: Request) {

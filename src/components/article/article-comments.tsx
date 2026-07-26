@@ -27,14 +27,16 @@ type Viewer = {
 type Props = {
   slug: string;
   initialComments: CommentView[];
-  dbConfigured: boolean;
+  dbReady: boolean;
+  setupError?: string;
   viewer: Viewer;
 };
 
 export function ArticleComments({
   slug,
   initialComments,
-  dbConfigured,
+  dbReady,
+  setupError,
   viewer,
 }: Props) {
   const router = useRouter();
@@ -91,11 +93,21 @@ export function ArticleComments({
     <section className="comments-wrap" aria-label="Comments">
       <h2 className="comments-heading">Comments</h2>
 
-      {!dbConfigured ? (
+      {!dbReady ? (
         <p className="comments-pending">
-          Comments need a Neon database. Connect Neon on Vercel, set{" "}
-          <code>DATABASE_URL</code>, run <code>npm run db:push</code>, then
-          redeploy.
+          {setupError === "schema_missing" ? (
+            <>
+              Database is connected, but tables are missing. In Neon SQL Editor
+              run <code>drizzle/init.sql</code>, or locally:{" "}
+              <code>npm run db:push</code>.
+            </>
+          ) : (
+            <>
+              Comments need Neon. Connect it on Vercel, set{" "}
+              <code>DATABASE_URL</code>, run <code>npm run db:push</code>, then
+              redeploy.
+            </>
+          )}
         </p>
       ) : (
         <>
