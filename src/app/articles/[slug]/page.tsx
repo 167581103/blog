@@ -46,6 +46,7 @@ export default async function ArticlePage({ params }: Props) {
         <OptimisticReadTitle
           slug={article.slug}
           title={article.title}
+          content={article.content}
           editHref={session ? `/articles/${article.slug}/edit` : undefined}
         />
         <ShareButton />
@@ -55,6 +56,7 @@ export default async function ArticlePage({ params }: Props) {
         <PageFade>
           <OptimisticArticleBody
             slug={article.slug}
+            title={article.title}
             content={article.content}
           />
           {article.status === "published" ? <GiscusComments /> : null}

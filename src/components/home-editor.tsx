@@ -22,16 +22,6 @@ export function HomeEditor({ home }: { home: HomeContent }) {
   function save() {
     setError(null);
     setStatusNote("Saving…");
-    // Feel instant: go home while save completes.
-    try {
-      sessionStorage.setItem(
-        "optimistic-home",
-        JSON.stringify({ title, content, at: Date.now() }),
-      );
-    } catch {
-      // ignore
-    }
-    router.push("/");
 
     startTransition(async () => {
       const res = await fetch("/api/home", {
@@ -45,14 +35,18 @@ export function HomeEditor({ home }: { home: HomeContent }) {
         } | null;
         setStatusNote(null);
         setError(data?.error || "Failed to save");
-        try {
-          sessionStorage.removeItem("optimistic-home");
-        } catch {
-          // ignore
-        }
-        router.replace("/home/edit");
         return;
       }
+
+      try {
+        sessionStorage.setItem(
+          "optimistic-home",
+          JSON.stringify({ title, content, at: Date.now() }),
+        );
+      } catch {
+        // ignore
+      }
+      router.push("/");
       router.refresh();
     });
   }

@@ -77,32 +77,119 @@ async function streamToJson<T>(
   }
 }
 
+function revisionPrefix(pathname: string) {
+  return `${pathname}.rev/`;
+}
+
+async function fetchJsonUrl<T>(url: string, bust: string | number): Promise<T | null> {
+  const target = new URL(url);
+  target.searchParams.set("v", String(bust));
+  const res = await fetch(target, { cache: "no-store" });
+  if (!res.ok) return null;
+  try {
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Read JSON by pathname via Blob get().
- * useCache:false bypasses CDN so overwrites are visible immediately (no list + ?v= bust).
+ * Read JSON for a logical pathname.
+ *
+ * Important: public Blob `get(..., useCache:false)` is a no-op in the SDK
+ * (cache bypass only works for private blobs). Overwriting the same public
+ * URL can stay stale on the CDN for ~60s.
+ *
+ * So we prefer immutable revision files under `{pathname}.rev/…` (listed via
+ * the Blob API, always fresh), and only fall back to the legacy overwrite path.
  */
 async function readJsonByPath<T>(pathname: string): Promise<T | null> {
   assertBlobConfigured();
   const auth = await blobAuth();
-  const result = await get(pathname, {
-    access: "public",
-    useCache: false,
+
+  const { blobs } = await list({
+    prefix: revisionPrefix(pathname),
     ...auth,
   });
-  if (!result || result.statusCode !== 200 || !result.stream) return null;
-  return streamToJson<T>(result.stream);
+  if (blobs.length) {
+    const newest = [...blobs].sort(
+      (a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime(),
+    )[0];
+    return fetchJsonUrl<T>(newest.url, newest.uploadedAt.getTime());
+  }
+
+  // Legacy: single overwritten object at pathname (may be CDN-stale up to ~60s).
+  try {
+    const meta = await head(pathname, auth);
+    return fetchJsonUrl<T>(meta.url, meta.uploadedAt.getTime());
+  } catch {
+    // Final attempt via get() for odd auth/path cases.
+    const result = await get(pathname, {
+      access: "public",
+      ...auth,
+    });
+    if (!result || result.statusCode !== 200 || !result.stream) return null;
+    return streamToJson<T>(result.stream);
+  }
 }
 
-async function putJson(pathname: string, data: unknown) {
+async function pruneRevisions(pathname: string, keep: number) {
   const auth = await blobAuth();
-  return put(pathname, JSON.stringify(data, null, 2), {
-    access: "public",
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    contentType: "application/json",
-    cacheControlMaxAge: ARTICLE_CACHE_MAX_AGE,
+  const { blobs } = await list({
+    prefix: revisionPrefix(pathname),
     ...auth,
   });
+  if (blobs.length <= keep) return;
+  const stale = [...blobs]
+    .sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime())
+    .slice(keep);
+  await Promise.all(stale.map((b) => del(b.url, auth).catch(() => undefined)));
+}
+
+async function deleteLogicalJson(pathname: string) {
+  const auth = await blobAuth();
+  const { blobs } = await list({
+    prefix: revisionPrefix(pathname),
+    ...auth,
+  });
+  await Promise.all([
+    ...blobs.map((b) => del(b.url, auth).catch(() => undefined)),
+    del(pathname, auth).catch(() => undefined),
+  ]);
+}
+
+/**
+ * Write JSON as a new immutable revision (instant-fresh reads) and mirror to
+ * the legacy pathname for older deploys/tools.
+ */
+async function putJson(pathname: string, data: unknown) {
+  const auth = await blobAuth();
+  const body = JSON.stringify(data, null, 2);
+  const versionPath = `${revisionPrefix(pathname)}${Date.now()}-${randomUUID().slice(0, 8)}.json`;
+
+  const version = await put(versionPath, body, {
+    access: "public",
+    addRandomSuffix: false,
+    contentType: "application/json",
+    // Immutable object — long cache is fine.
+    cacheControlMaxAge: MEDIA_CACHE_MAX_AGE,
+    ...auth,
+  });
+
+  // Best-effort legacy mirror + revision prune (do not block the editor on these).
+  void Promise.all([
+    put(pathname, body, {
+      access: "public",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      contentType: "application/json",
+      cacheControlMaxAge: ARTICLE_CACHE_MAX_AGE,
+      ...auth,
+    }).catch(() => undefined),
+    pruneRevisions(pathname, 5),
+  ]);
+
+  return version;
 }
 
 type ArticleIndexItem = {
@@ -145,8 +232,12 @@ async function writeIndex(articles: Article[], urls: Record<string, string>) {
 async function rebuildIndexFromBlobs(): Promise<Article[]> {
   const auth = await blobAuth();
   const { blobs } = await list({ prefix: ARTICLES_PREFIX, ...auth });
+  // Only logical article files (skip index + *.rev/ version objects).
   const articleBlobs = blobs.filter(
-    (b) => b.pathname.endsWith(".json") && b.pathname !== INDEX_PATH,
+    (b) =>
+      b.pathname.endsWith(".json") &&
+      b.pathname !== INDEX_PATH &&
+      !b.pathname.includes(".rev/"),
   );
   const articles = (
     await Promise.all(
@@ -259,8 +350,13 @@ async function getArticleUncached(slug: string): Promise<Article | null> {
 export const getArticle = cache(getArticleUncached);
 
 async function pathExists(pathname: string): Promise<boolean> {
+  const auth = await blobAuth();
+  const { blobs } = await list({
+    prefix: revisionPrefix(pathname),
+    ...auth,
+  });
+  if (blobs.length) return true;
   try {
-    const auth = await blobAuth();
     await head(pathname, auth);
     return true;
   } catch {
@@ -366,36 +462,21 @@ export async function updateArticle(
         : existing.publishedAt,
   };
 
-  const auth = await blobAuth();
   const currentIndex = index || [];
-  const priorUrl =
-    currentIndex.find((i) => i.slug === existing.slug)?.url || "";
 
   if (nextSlug !== existing.slug) {
-    // Rename: write new, delete old, update index — put new + index together after we know URL.
     const result = await putJson(articlePath(nextSlug), article);
     await Promise.all([
       putJson(
         INDEX_PATH,
         upsertIndexItems(currentIndex, article, result.url, existing.slug),
       ),
-      del(articlePath(existing.slug), auth).catch(() => undefined),
+      deleteLogicalJson(articlePath(existing.slug)),
     ]);
     return article;
   }
 
-  // Fast path: same slug — article + index in parallel when URL already known.
-  if (priorUrl) {
-    await Promise.all([
-      putJson(articlePath(nextSlug), article),
-      putJson(
-        INDEX_PATH,
-        upsertIndexItems(currentIndex, article, priorUrl),
-      ),
-    ]);
-    return article;
-  }
-
+  // Revision URL changes every write — always wait for put, then update index.
   const result = await putJson(articlePath(nextSlug), article);
   await putJson(
     INDEX_PATH,
@@ -406,13 +487,12 @@ export async function updateArticle(
 
 export async function deleteArticle(slug: string): Promise<boolean> {
   assertBlobConfigured();
-  const auth = await blobAuth();
   const exists = await pathExists(articlePath(slug));
   if (!exists) return false;
 
   const index = (await readIndex()) || [];
   await Promise.all([
-    del(articlePath(slug), auth),
+    deleteLogicalJson(articlePath(slug)),
     putJson(
       INDEX_PATH,
       index.filter((i) => i.slug !== slug),
