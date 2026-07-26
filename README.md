@@ -1,68 +1,71 @@
 # Blog
 
-Personal blog — read publicly, write when signed in with the owner GitHub account, comment via GitHub Discussions (Giscus).
+Personal blog — read publicly; sign in with GitHub to comment; the owner account can write.
 
 ## Stack
 
 - Next.js (App Router) on Vercel
-- Auth.js (GitHub OAuth) for the author
-- Vercel Blob for articles and media
+- Auth.js (GitHub OAuth) — any GitHub user can sign in; admin-only write gates
+- Vercel Blob for article/home bodies and media
+- Neon Postgres + Drizzle for users, comments, and future structured features
 - TipTap markdown editor with paste/drop image upload
-- Giscus for visitor comments
+
+## Storage model
+
+| Layer | Holds |
+| --- | --- |
+| Vercel Blob | Home JSON, article JSON, uploads, resume |
+| Neon Postgres | `users`, `comments`, plus reserved `tags` / `article_tags` / `annotations` |
 
 ## Pages
 
 | Route | Purpose |
 | --- | --- |
-| `/` | Home (editable when signed in) |
-| `/articles/[slug]` | Read — back, title, share |
-| `/articles/new` · `/articles/[slug]/edit` | Write — title + editor |
-| `/login` | Author GitHub sign-in |
-| `/home/edit` | Edit home content |
+| `/` | Home (editable when signed in as admin) |
+| `/articles/[slug]` | Read + comments |
+| `/articles/new` · `/articles/[slug]/edit` | Write (admin) |
+| `/login` | GitHub sign-in (comment or write) |
+| `/home/edit` | Edit home content (admin) |
 
 ## Deploy on Vercel
 
 1. Import this repo in Vercel.
-2. Add a **public** Blob store (Storage → Blob) and connect it to this project.
-   - Store access must be **Public** (not Private).
-   - Most reliable: Blob store → **Settings → Tokens** → create a read-write token → set env `BLOB_READ_WRITE_TOKEN` for Production + Preview → Redeploy.
-   - Or use OIDC (`BLOB_STORE_ID` / `blog_STORE_ID`). Remove any old token from a disconnected/private store first.
-3. Create a GitHub OAuth App:
-   - Homepage: your Vercel URL
+2. Add a **public** Blob store and connect it (see previous Blob notes / `BLOB_READ_WRITE_TOKEN`).
+3. Add **Neon** from the Vercel Marketplace and connect it to this project (injects `DATABASE_URL`).
+4. Create a GitHub OAuth App:
+   - Homepage: your site URL
    - Callback: `https://<your-domain>/api/auth/callback/github`
-4. Set environment variables (see `.env.example`):
-   - `AUTH_SECRET` — `openssl rand -base64 32`
-   - `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET`
-   - `ADMIN_GITHUB_USERNAME` — `167581103`
-   - `AUTH_URL` — production URL
-   - Blob token (auto if linked)
-   - Giscus public vars
-5. Deploy.
+5. Set environment variables (see `.env.example`):
+   - `AUTH_SECRET`, `AUTH_GITHUB_ID`, `AUTH_GITHUB_SECRET`
+   - `ADMIN_GITHUB_USERNAME`
+   - `AUTH_URL` — full `https://…` URL
+   - Blob + `DATABASE_URL` (from integrations)
+6. Push schema, then deploy:
 
-### Giscus comments
+```bash
+npm install
+npx dotenv -e .env.local -- npm run db:push
+```
 
-Published articles show a **Comments** block at the bottom of the article body
-(Giscus / GitHub Discussions). Defaults for `167581103/blog` + `Announcements`
-are baked into the app; env overrides are optional.
+Or after Neon is linked on Vercel, run `db:push` locally against the pulled `DATABASE_URL`, then Redeploy.
 
-1. Enable **Discussions** on the GitHub repo (required once).
-2. Optional: override `NEXT_PUBLIC_GISCUS_*` on Vercel if you change category.
-3. Redeploy after changing env (public vars are inlined at build time).
+### Comments
 
-Visitors sign in with GitHub through Giscus to comment.
+Published articles show a **Comments** block under the body. Visitors use the same `/login` GitHub session — no second Giscus login.
 
 ## Local development
 
 ```bash
 cp .env.example .env.local
-# fill values, then:
+# fill Auth + Blob + DATABASE_URL, then:
 npm install
+npm run db:push
 npm run dev
 ```
 
 ## Author tips
 
-- Home: pencil / plus icons appear only when signed in.
+- Home: pencil / plus icons appear only for the admin account.
 - Editor: paste or drop images/videos to upload.
 - `⌘/Ctrl + S` saves a draft; the check icon releases (publishes).
-- On a published article, click the title (while signed in) to edit.
+- On a published article, click the title (while admin) to edit.

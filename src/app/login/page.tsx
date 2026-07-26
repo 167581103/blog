@@ -4,15 +4,22 @@ import { PageFade } from "@/components/chrome/page-fade";
 
 export const dynamic = "force-dynamic";
 
+function safeNextPath(raw?: string) {
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/";
+  return raw;
+}
+
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; next?: string }>;
 }) {
   const session = await auth();
-  if (session) redirect("/");
-
   const params = await searchParams;
+  const next = safeNextPath(params.next);
+
+  if (session) redirect(next);
+
   const denied = params.error === "AccessDenied";
 
   return (
@@ -22,13 +29,13 @@ export default async function LoginPage({
           <h1>Sign in</h1>
           <p>
             {denied
-              ? "This account is not allowed to manage the blog."
-              : "Author access via GitHub."}
+              ? "GitHub sign-in was denied."
+              : "Sign in with GitHub to comment. The site owner can also write."}
           </p>
           <form
             action={async () => {
               "use server";
-              await signIn("github", { redirectTo: "/" });
+              await signIn("github", { redirectTo: next });
             }}
           >
             <button type="submit" className="ghost-btn">
