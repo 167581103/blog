@@ -4,11 +4,30 @@ import { useEffect } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import type { EditorView } from "@tiptap/pm/view";
 import StarterKit from "@tiptap/starter-kit";
+import { mergeAttributes } from "@tiptap/core";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Markdown } from "tiptap-markdown";
 import { BlogImage } from "./blog-image";
 import { ImageCompare } from "./image-compare";
+import { LinkUrlHint } from "./link-url-hint";
+
+/** Underlined link mark that exposes the real href as title + data attribute. */
+const EditorLink = Link.extend({
+  renderHTML({ HTMLAttributes }) {
+    const href =
+      typeof HTMLAttributes.href === "string" ? HTMLAttributes.href : "";
+    return [
+      "a",
+      mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
+        class: "md-link",
+        title: href ? `Link → ${href}` : "Link",
+        "data-href": href,
+      }),
+      0,
+    ];
+  },
+});
 
 type Props = {
   value: string;
@@ -158,9 +177,10 @@ export function MarkdownEditor({
         allowBase64: false,
       }),
       ImageCompare,
-      Link.configure({
+      EditorLink.configure({
         openOnClick: false,
         autolink: true,
+        linkOnPaste: true,
       }),
       Placeholder.configure({
         placeholder: placeholder ?? "Write in markdown…",
@@ -211,5 +231,10 @@ export function MarkdownEditor({
     }
   }, [editor, value]);
 
-  return <EditorContent editor={editor} />;
+  return (
+    <div className="md-editor-wrap">
+      <LinkUrlHint editor={editor} />
+      <EditorContent editor={editor} />
+    </div>
+  );
 }
