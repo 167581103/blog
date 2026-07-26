@@ -30,6 +30,12 @@ export function ImageCompareView({
   const altRight = (node.attrs.altRight as string) || "";
 
   async function fillSide(side: "left" | "right", file: File) {
+    const local = URL.createObjectURL(file);
+    updateAttributes(
+      side === "left"
+        ? { srcLeft: local, altLeft: file.name }
+        : { srcRight: local, altRight: file.name },
+    );
     try {
       const url = await uploadFile(file);
       updateAttributes(
@@ -38,29 +44,42 @@ export function ImageCompareView({
           : { srcRight: url, altRight: file.name },
       );
     } catch {
-      // ignore
+      // keep local preview
+    } finally {
+      URL.revokeObjectURL(local);
     }
+  }
+
+  function takeImageFile(
+    list: DataTransferItemList | FileList | undefined | null,
+  ): File | null {
+    if (!list) return null;
+    if (list instanceof FileList) {
+      for (const file of Array.from(list)) {
+        if (file.type.startsWith("image/")) return file;
+      }
+      return null;
+    }
+    for (const item of list) {
+      if (item.kind === "file") {
+        const file = item.getAsFile();
+        if (file?.type.startsWith("image/")) return file;
+      }
+    }
+    return null;
   }
 
   function onPasteSide(side: "left" | "right", event: ClipboardEvent) {
-    const items = event.clipboardData?.items;
-    if (!items) return;
-    for (const item of items) {
-      if (item.kind === "file") {
-        const file = item.getAsFile();
-        if (file?.type.startsWith("image/")) {
-          event.preventDefault();
-          event.stopPropagation();
-          void fillSide(side, file);
-          return;
-        }
-      }
-    }
+    const file = takeImageFile(event.clipboardData?.items);
+    if (!file) return;
+    event.preventDefault();
+    event.stopPropagation();
+    void fillSide(side, file);
   }
 
   function onDropSide(side: "left" | "right", event: DragEvent) {
-    const file = event.dataTransfer?.files?.[0];
-    if (!file?.type.startsWith("image/")) return;
+    const file = takeImageFile(event.dataTransfer?.files);
+    if (!file) return;
     event.preventDefault();
     event.stopPropagation();
     void fillSide(side, file);
@@ -154,22 +173,21 @@ function Slot({
   onPaste: (e: ClipboardEvent) => void;
   onDrop: (e: DragEvent) => void;
 }) {
-  if (src) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src={src} alt={alt} draggable={false} />
-    );
-  }
-
+  // Always keep a paste/drop target — filled sides can be replaced too.
   return (
     <div
-      className="img-compare-slot"
+      className={`img-compare-slot${src ? " has-image" : ""}`}
       tabIndex={0}
       onPaste={onPaste}
       onDrop={onDrop}
       onDragOver={(e) => e.preventDefault()}
     >
-      {label}
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt={alt} draggable={false} />
+      ) : (
+        label
+      )}
     </div>
   );
 }

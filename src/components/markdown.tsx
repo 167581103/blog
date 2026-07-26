@@ -28,6 +28,16 @@ const schema = {
       "class",
       "data-type",
     ],
+    a: [
+      ...(defaultSchema.attributes?.a || []),
+      "className",
+      "class",
+      "download",
+      "data-filename",
+      "data-size",
+      "data-mime",
+      "data-type",
+    ],
   },
 };
 

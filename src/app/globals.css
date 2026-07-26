@@ -526,6 +526,7 @@ textarea {
   min-height: 9rem;
   display: grid;
   place-items: center;
+  overflow: hidden;
   border: 1px dashed #c8c8c8;
   color: var(--muted);
   font-size: 0.9rem;
@@ -538,6 +539,69 @@ textarea {
 .img-compare-slot:hover {
   border-color: var(--foreground);
   color: var(--foreground);
+}
+
+.img-compare-slot.has-image {
+  border-style: solid;
+  border-color: transparent;
+  padding: 0;
+  min-height: 0;
+}
+
+.img-compare-slot.has-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.file-attachment-node {
+  margin: 1rem 0;
+}
+
+.file-attachment-node.is-selected .file-attachment {
+  outline: 1px solid var(--foreground);
+  outline-offset: 2px;
+}
+
+.file-attachment,
+a.file-attachment {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  max-width: 100%;
+  padding: 0.7rem 0.9rem;
+  border: 1px dashed #c8c8c8;
+  color: var(--foreground);
+  text-decoration: none;
+  font-family: var(--font-display), sans-serif;
+  font-size: 0.95rem;
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.file-attachment:hover,
+a.file-attachment:hover {
+  border-color: var(--foreground);
+  background: rgba(0, 0, 0, 0.015);
+}
+
+.file-attachment-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-attachment-meta {
+  flex: none;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.prose-blog .file-attachment,
+.prose-blog a.file-attachment {
+  text-decoration: none;
+  margin: 0 0 1.25rem;
 }
 
 .img-layout-bar {
