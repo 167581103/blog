@@ -30,6 +30,8 @@ type Props = {
   dbReady: boolean;
   setupError?: string;
   viewer: Viewer;
+  /** Signed in for writing, but session lacks githubId (needs re-login). */
+  needsRelogin?: boolean;
 };
 
 export function ArticleComments({
@@ -38,6 +40,7 @@ export function ArticleComments({
   dbReady,
   setupError,
   viewer,
+  needsRelogin = false,
 }: Props) {
   const router = useRouter();
   const [comments, setComments] = useState(initialComments);
@@ -174,6 +177,11 @@ export function ArticleComments({
                 </span>
               </div>
             </div>
+          ) : needsRelogin ? (
+            <p className="comments-pending">
+              Your session is from before comments launched.{" "}
+              <Link href={loginHref}>Sign in again</Link> to comment.
+            </p>
           ) : (
             <p className="comments-pending">
               <Link href={loginHref}>Sign in with GitHub</Link> to comment.

@@ -50,6 +50,7 @@ export default async function ArticlePage({ params }: Props) {
           isAdmin,
         }
       : null;
+  const needsRelogin = Boolean(session?.user?.login && !session.user.githubId);
 
   return (
     <div className="read-shell">
@@ -80,6 +81,7 @@ export default async function ArticlePage({ params }: Props) {
               dbReady={listed.ready}
               setupError={"error" in listed ? listed.error : undefined}
               viewer={viewer}
+              needsRelogin={needsRelogin}
             />
           ) : null}
         </PageFade>

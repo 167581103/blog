@@ -23,7 +23,24 @@ normalizeAuthUrl();
 const adminUsername = process.env.ADMIN_GITHUB_USERNAME?.toLowerCase();
 
 function isAdminLogin(login?: string | null) {
-  return Boolean(login && adminUsername && login.toLowerCase() === adminUsername);
+  return Boolean(
+    login && adminUsername && login.toLowerCase() === adminUsername,
+  );
+}
+
+function resolveGithubId(input: {
+  profileId?: string | number | null;
+  providerAccountId?: string | null;
+  tokenGithubId?: unknown;
+  tokenSub?: string | null;
+}) {
+  return (
+    input.profileId?.toString() ||
+    input.providerAccountId ||
+    (typeof input.tokenGithubId === "string" ? input.tokenGithubId : "") ||
+    input.tokenSub ||
+    ""
+  );
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -46,12 +63,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async jwt({ token, profile, account }) {
       if (profile) {
         const login = (profile as { login?: string }).login;
-        const githubId =
-          (profile as { id?: string | number }).id?.toString() ||
-          account?.providerAccountId;
+        const githubId = resolveGithubId({
+          profileId: (profile as { id?: string | number }).id,
+          providerAccountId: account?.providerAccountId,
+          tokenSub: token.sub,
+        });
 
         token.login = login;
-        token.githubId = githubId;
+        token.githubId = githubId || undefined;
         token.isAdmin = isAdminLogin(login);
 
         if (githubId && login) {
@@ -60,7 +79,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               id: githubId,
               login,
               name: profile.name ?? null,
-              image: (profile as { image?: string | null }).image ??
+              image:
+                (profile as { image?: string | null }).image ??
                 (profile as { avatar_url?: string | null }).avatar_url ??
                 null,
             });
@@ -69,16 +89,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             console.error("[auth] upsertUser failed:", error);
           }
         }
-      } else if (token.login && token.isAdmin === undefined) {
-        token.isAdmin = isAdminLogin(token.login as string);
+      } else {
+        // Older cookies (pre-comments) have login/sub but no githubId.
+        if (!token.githubId && token.sub) {
+          token.githubId = token.sub;
+        }
+        if (token.login) {
+          token.isAdmin = isAdminLogin(token.login as string);
+        }
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
+        const githubId = resolveGithubId({
+          tokenGithubId: token.githubId,
+          tokenSub: token.sub,
+        });
         session.user.login = token.login as string | undefined;
-        session.user.githubId = token.githubId as string | undefined;
-        session.user.isAdmin = Boolean(token.isAdmin);
+        session.user.githubId = githubId || undefined;
+        session.user.isAdmin = Boolean(
+          token.isAdmin ?? isAdminLogin(session.user.login),
+        );
       }
       return session;
     },
