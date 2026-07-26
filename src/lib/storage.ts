@@ -2,12 +2,13 @@ import { cache } from "react";
 import { list, put, del, get, head } from "@vercel/blob";
 import { getVercelOidcToken } from "@vercel/oidc";
 import { randomUUID } from "node:crypto";
-import type { Article, ArticleInput, HomeContent } from "./types";
+import type { Article, ArticleInput, HomeContent, ResumeInfo } from "./types";
 import { slugify } from "./slug";
 
 const ARTICLES_PREFIX = "articles/";
 const HOME_PATH = "site/home.json";
 const INDEX_PATH = "articles/index.json";
+const RESUME_PATH = "site/resume.pdf";
 
 /** Article JSON must revalidate quickly; Blob min cache is 60s. */
 const ARTICLE_CACHE_MAX_AGE = 60;
@@ -518,4 +519,106 @@ export async function uploadMedia(
     ...auth,
   });
   return blob.url;
+}
+
+async function latestResumeBlob(): Promise<{
+  url: string;
+  uploadedAt: Date;
+  pathname: string;
+} | null> {
+  if (!isBlobConfigured()) return null;
+  const auth = await blobAuth();
+  const { blobs } = await list({
+    prefix: revisionPrefix(RESUME_PATH),
+    ...auth,
+  });
+  if (blobs.length) {
+    const newest = [...blobs].sort(
+      (a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime(),
+    )[0];
+    return {
+      url: newest.url,
+      uploadedAt: newest.uploadedAt,
+      pathname: newest.pathname,
+    };
+  }
+  try {
+    const meta = await head(RESUME_PATH, auth);
+    return {
+      url: meta.url,
+      uploadedAt: meta.uploadedAt,
+      pathname: meta.pathname,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function getResumeInfo(): Promise<ResumeInfo> {
+  try {
+    const latest = await latestResumeBlob();
+    return {
+      exists: Boolean(latest),
+      updatedAt: latest?.uploadedAt.toISOString() ?? null,
+      publicPath: "/resume.pdf",
+    };
+  } catch {
+    return { exists: false, updatedAt: null, publicPath: "/resume.pdf" };
+  }
+}
+
+/** Stream the newest resume bytes through the app (stable /resume.pdf URL). */
+export async function getResumeResponse(): Promise<Response | null> {
+  const latest = await latestResumeBlob();
+  if (!latest) return null;
+
+  const target = new URL(latest.url);
+  target.searchParams.set("v", String(latest.uploadedAt.getTime()));
+  const upstream = await fetch(target, { cache: "no-store" });
+  if (!upstream.ok || !upstream.body) return null;
+
+  return new Response(upstream.body, {
+    headers: {
+      "Content-Type": "application/pdf",
+      "Content-Disposition": 'inline; filename="resume.pdf"',
+      "Cache-Control": "public, max-age=60, must-revalidate",
+    },
+  });
+}
+
+export async function saveResume(file: File | Blob): Promise<ResumeInfo> {
+  assertBlobConfigured();
+  const auth = await blobAuth();
+  const versionPath = `${revisionPrefix(RESUME_PATH)}${Date.now()}-${randomUUID().slice(0, 8)}.pdf`;
+
+  await put(versionPath, file, {
+    access: "public",
+    addRandomSuffix: false,
+    contentType: "application/pdf",
+    cacheControlMaxAge: MEDIA_CACHE_MAX_AGE,
+    ...auth,
+  });
+
+  void Promise.all([
+    put(RESUME_PATH, file, {
+      access: "public",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      contentType: "application/pdf",
+      cacheControlMaxAge: ARTICLE_CACHE_MAX_AGE,
+      ...auth,
+    }).catch(() => undefined),
+    pruneRevisions(RESUME_PATH, 5),
+  ]);
+
+  return getResumeInfo();
+}
+
+export async function deleteResume(): Promise<boolean> {
+  assertBlobConfigured();
+  const before = await latestResumeBlob();
+  if (!before) return false;
+  await deleteLogicalJson(RESUME_PATH);
+  // deleteLogicalJson uses .json naming in comments only — it deletes rev prefix + path.
+  return true;
 }
