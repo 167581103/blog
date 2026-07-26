@@ -40,14 +40,16 @@ Personal blog — read publicly; sign in with GitHub to comment; the owner accou
    - `ADMIN_GITHUB_USERNAME`
    - `AUTH_URL` — full `https://…` URL
    - Blob + `DATABASE_URL` (from integrations)
-6. Push schema, then deploy:
+6. **Push schema** (required once after connecting Neon — otherwise article
+   pages error with `relation "comments" does not exist`):
 
 ```bash
 npm install
+vercel env pull .env.local
 npx dotenv -e .env.local -- npm run db:push
 ```
 
-Or after Neon is linked on Vercel, run `db:push` locally against the pulled `DATABASE_URL`, then Redeploy.
+Or open the Neon SQL Editor and run `drizzle/init.sql`.
 
 ### Comments
 

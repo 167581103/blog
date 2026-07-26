@@ -27,15 +27,20 @@ type Viewer = {
 type Props = {
   slug: string;
   initialComments: CommentView[];
-  dbConfigured: boolean;
+  dbReady: boolean;
+  setupError?: string;
   viewer: Viewer;
+  /** Signed in for writing, but session lacks githubId (needs re-login). */
+  needsRelogin?: boolean;
 };
 
 export function ArticleComments({
   slug,
   initialComments,
-  dbConfigured,
+  dbReady,
+  setupError,
   viewer,
+  needsRelogin = false,
 }: Props) {
   const router = useRouter();
   const [comments, setComments] = useState(initialComments);
@@ -91,11 +96,21 @@ export function ArticleComments({
     <section className="comments-wrap" aria-label="Comments">
       <h2 className="comments-heading">Comments</h2>
 
-      {!dbConfigured ? (
+      {!dbReady ? (
         <p className="comments-pending">
-          Comments need a Neon database. Connect Neon on Vercel, set{" "}
-          <code>DATABASE_URL</code>, run <code>npm run db:push</code>, then
-          redeploy.
+          {setupError === "schema_missing" ? (
+            <>
+              Database is connected, but tables are missing. In Neon SQL Editor
+              run <code>drizzle/init.sql</code>, or locally:{" "}
+              <code>npm run db:push</code>.
+            </>
+          ) : (
+            <>
+              Comments need Neon. Connect it on Vercel, set{" "}
+              <code>DATABASE_URL</code>, run <code>npm run db:push</code>, then
+              redeploy.
+            </>
+          )}
         </p>
       ) : (
         <>
@@ -162,6 +177,11 @@ export function ArticleComments({
                 </span>
               </div>
             </div>
+          ) : needsRelogin ? (
+            <p className="comments-pending">
+              Your session is from before comments launched.{" "}
+              <Link href={loginHref}>Sign in again</Link> to comment.
+            </p>
           ) : (
             <p className="comments-pending">
               <Link href={loginHref}>Sign in with GitHub</Link> to comment.

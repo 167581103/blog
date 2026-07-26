@@ -16,38 +16,73 @@ export type CommentView = {
   };
 };
 
-export async function listComments(articleSlug: string): Promise<CommentView[]> {
-  if (!isDbConfigured()) return [];
+export type ListCommentsResult = {
+  comments: CommentView[];
+  /** False when DATABASE_URL missing or schema not pushed yet. */
+  ready: boolean;
+  error?: string;
+};
 
-  const db = getDb();
-  const rows = await db
-    .select({
-      id: comments.id,
-      articleSlug: comments.articleSlug,
-      body: comments.body,
-      createdAt: comments.createdAt,
-      authorId: users.id,
-      authorLogin: users.login,
-      authorName: users.name,
-      authorImage: users.image,
-    })
-    .from(comments)
-    .innerJoin(users, eq(comments.userId, users.id))
-    .where(eq(comments.articleSlug, articleSlug))
-    .orderBy(asc(comments.createdAt));
+function isMissingRelationError(error: unknown) {
+  const message =
+    error instanceof Error
+      ? `${error.message} ${String((error as { cause?: unknown }).cause ?? "")}`
+      : String(error);
+  return (
+    message.includes('relation "comments" does not exist') ||
+    message.includes('relation "users" does not exist') ||
+    message.includes("42P01")
+  );
+}
 
-  return rows.map((row) => ({
-    id: row.id,
-    articleSlug: row.articleSlug,
-    body: row.body,
-    createdAt: row.createdAt.toISOString(),
-    author: {
-      id: row.authorId,
-      login: row.authorLogin,
-      name: row.authorName,
-      image: row.authorImage,
-    },
-  }));
+export async function listComments(
+  articleSlug: string,
+): Promise<ListCommentsResult> {
+  if (!isDbConfigured()) {
+    return { comments: [], ready: false, error: "missing_database_url" };
+  }
+
+  try {
+    const db = getDb();
+    const rows = await db
+      .select({
+        id: comments.id,
+        articleSlug: comments.articleSlug,
+        body: comments.body,
+        createdAt: comments.createdAt,
+        authorId: users.id,
+        authorLogin: users.login,
+        authorName: users.name,
+        authorImage: users.image,
+      })
+      .from(comments)
+      .innerJoin(users, eq(comments.userId, users.id))
+      .where(eq(comments.articleSlug, articleSlug))
+      .orderBy(asc(comments.createdAt));
+
+    return {
+      ready: true,
+      comments: rows.map((row) => ({
+        id: row.id,
+        articleSlug: row.articleSlug,
+        body: row.body,
+        createdAt: row.createdAt.toISOString(),
+        author: {
+          id: row.authorId,
+          login: row.authorLogin,
+          name: row.authorName,
+          image: row.authorImage,
+        },
+      })),
+    };
+  } catch (error) {
+    console.error("[comments] listComments failed:", error);
+    return {
+      comments: [],
+      ready: false,
+      error: isMissingRelationError(error) ? "schema_missing" : "query_failed",
+    };
+  }
 }
 
 export async function createComment(input: {

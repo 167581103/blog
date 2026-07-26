@@ -9,7 +9,6 @@ import {
 } from "@/components/article/optimistic-article";
 import { ChevronLeftIcon } from "@/components/chrome/icons";
 import { auth } from "@/lib/auth";
-import { isDbConfigured } from "@/db";
 import { listComments } from "@/lib/db/comments";
 import { getArticle } from "@/lib/storage";
 
@@ -38,11 +37,10 @@ export default async function ArticlePage({ params }: Props) {
   const isAdmin = Boolean(session?.user?.isAdmin);
   if (article.status !== "published" && !isAdmin) notFound();
 
-  const dbConfigured = isDbConfigured();
-  const comments =
-    article.status === "published" && dbConfigured
+  const listed =
+    article.status === "published"
       ? await listComments(article.slug)
-      : [];
+      : { comments: [], ready: false as const };
 
   const viewer =
     session?.user?.githubId && session.user.login
@@ -52,6 +50,7 @@ export default async function ArticlePage({ params }: Props) {
           isAdmin,
         }
       : null;
+  const needsRelogin = Boolean(session?.user?.login && !session.user.githubId);
 
   return (
     <div className="read-shell">
@@ -78,9 +77,11 @@ export default async function ArticlePage({ params }: Props) {
           {article.status === "published" ? (
             <ArticleComments
               slug={article.slug}
-              initialComments={comments}
-              dbConfigured={dbConfigured}
+              initialComments={listed.comments}
+              dbReady={listed.ready}
+              setupError={"error" in listed ? listed.error : undefined}
               viewer={viewer}
+              needsRelogin={needsRelogin}
             />
           ) : null}
         </PageFade>
