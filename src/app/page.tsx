@@ -1,18 +1,19 @@
 import { PageFade } from "@/components/chrome/page-fade";
 import { ArticleList } from "@/components/article/article-list";
 import { OptimisticHome } from "@/components/home/optimistic-home";
-import { requireAdmin } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { getHomeContent, listArticles } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const [session, home, all] = await Promise.all([
-    requireAdmin(),
+    auth(),
     getHomeContent(),
     listArticles(true),
   ]);
-  const articles = session
+  const isAdmin = Boolean(session?.user?.isAdmin);
+  const articles = isAdmin
     ? all
     : all.filter((a) => a.status === "published");
 
@@ -22,9 +23,9 @@ export default async function HomePage() {
         <OptimisticHome
           title={home.title}
           content={home.content}
-          editHref={session ? "/home/edit" : undefined}
+          editHref={isAdmin ? "/home/edit" : undefined}
         />
-        <ArticleList articles={articles} isAdmin={Boolean(session)} />
+        <ArticleList articles={articles} isAdmin={isAdmin} />
       </PageFade>
     </main>
   );

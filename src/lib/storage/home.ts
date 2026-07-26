@@ -13,7 +13,7 @@ async function getHomeContentUncached(): Promise<HomeContent> {
   const fallback: HomeContent = {
     title: "Blog",
     content:
-      "A quiet place for notes, thoughts, and things worth keeping.\n\nSign in to write.",
+      "A quiet place for notes, thoughts, and things worth keeping.\n\nSign in to write or comment.",
     updatedAt: new Date(0).toISOString(),
   };
 
