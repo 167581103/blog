@@ -181,6 +181,8 @@ export function MarkdownEditor({
         openOnClick: false,
         autolink: true,
         linkOnPaste: true,
+        // Type/paste `[label](url)` → real link mark (not escaped plain text).
+        markdownLinks: true,
       }),
       Placeholder.configure({
         placeholder: placeholder ?? "Write in markdown…",
