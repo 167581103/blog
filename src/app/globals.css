@@ -631,12 +631,66 @@ textarea {
   color: var(--muted);
 }
 
+.md-editor-wrap {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.md-link-hint {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--line);
+  background: var(--soft);
+  font-family: var(--font-display), sans-serif;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.md-link-hint-label {
+  flex: none;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--foreground);
+}
+
+.md-link-hint-url {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--foreground);
+}
+
 .md-editor {
   min-height: 55vh;
   outline: none;
   font-family: var(--font-body), serif;
   font-size: 1.125rem;
   line-height: 1.8;
+}
+
+/* Make links obvious in the editor — not plain text. */
+.md-editor a.md-link,
+.md-editor a {
+  color: var(--foreground);
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 0.2em;
+  text-decoration-color: rgba(0, 0, 0, 0.35);
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 2px;
+  padding: 0 0.12em;
+  cursor: text;
+}
+
+.md-editor a.md-link:hover,
+.md-editor a:hover {
+  text-decoration-color: var(--foreground);
+  background: rgba(0, 0, 0, 0.07);
 }
 
 .md-editor p {
