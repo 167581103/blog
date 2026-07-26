@@ -23,3 +23,9 @@ export type ArticleInput = {
   status: ArticleStatus;
   slug?: string;
 };
+
+export type ResumeInfo = {
+  exists: boolean;
+  updatedAt: string | null;
+  publicPath: "/resume.pdf";
+};

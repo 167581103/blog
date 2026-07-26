@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import type { EditorView } from "@tiptap/pm/view";
+import { NodeSelection } from "@tiptap/pm/state";
 import StarterKit from "@tiptap/starter-kit";
 import { mergeAttributes } from "@tiptap/core";
 import Link from "@tiptap/extension-link";
@@ -10,6 +11,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import { Markdown } from "tiptap-markdown";
 import { BlogImage } from "./blog-image";
 import { ImageCompare } from "./image-compare";
+import { FileAttachment } from "./file-attachment";
 import { LinkUrlHint } from "./link-url-hint";
 
 /** Underlined link mark that exposes the real href as title + data attribute. */
@@ -48,24 +50,40 @@ async function uploadFile(file: File): Promise<string> {
   return data.url;
 }
 
-function collectImageFiles(
+function collectFiles(
   list: DataTransferItemList | FileList | undefined | null,
 ): File[] {
   if (!list) return [];
   const files: File[] = [];
   if (list instanceof FileList) {
-    for (const file of Array.from(list)) {
-      if (file.type.startsWith("image/")) files.push(file);
-    }
+    for (const file of Array.from(list)) files.push(file);
     return files;
   }
   for (const item of list) {
     if (item.kind === "file") {
       const file = item.getAsFile();
-      if (file?.type.startsWith("image/")) files.push(file);
+      if (file) files.push(file);
     }
   }
   return files;
+}
+
+function isImageFile(file: File) {
+  return file.type.startsWith("image/");
+}
+
+function findSelectedCompare(view: EditorView): {
+  pos: number;
+  node: ReturnType<EditorView["state"]["doc"]["nodeAt"]>;
+} | null {
+  const { selection } = view.state;
+  if (
+    selection instanceof NodeSelection &&
+    selection.node.type.name === "imageCompare"
+  ) {
+    return { pos: selection.from, node: selection.node };
+  }
+  return null;
 }
 
 function insertImages(view: EditorView, urls: { src: string; alt: string }[]) {
@@ -119,13 +137,90 @@ function replaceSrc(view: EditorView, from: string, to: string) {
       const next = { ...node.attrs };
       if (next.srcLeft === from) next.srcLeft = to;
       if (next.srcRight === from) next.srcRight = to;
-      if (next.srcLeft !== node.attrs.srcLeft || next.srcRight !== node.attrs.srcRight) {
+      if (
+        next.srcLeft !== node.attrs.srcLeft ||
+        next.srcRight !== node.attrs.srcRight
+      ) {
         tr = tr.setNodeMarkup(pos, undefined, next);
         changed = true;
       }
     }
+    if (node.type.name === "fileAttachment" && node.attrs.href === from) {
+      tr = tr.setNodeMarkup(pos, undefined, { ...node.attrs, href: to });
+      changed = true;
+    }
   });
   if (changed) view.dispatch(tr);
+}
+
+/** Prefer filling an empty compare side over replacing the whole node. */
+function fillCompareWithImages(
+  view: EditorView,
+  files: File[],
+  onUploadingChange?: (uploading: boolean) => void,
+): boolean {
+  const selected = findSelectedCompare(view);
+  if (!selected?.node || !files.length) return false;
+
+  const images = files.filter(isImageFile);
+  if (!images.length) return false;
+
+  const { pos, node } = selected;
+  let srcLeft = (node.attrs.srcLeft as string) || "";
+  let srcRight = (node.attrs.srcRight as string) || "";
+  let altLeft = (node.attrs.altLeft as string) || "";
+  let altRight = (node.attrs.altRight as string) || "";
+
+  const locals: { file: File; src: string; side: "left" | "right" }[] = [];
+
+  for (const file of images) {
+    const local = URL.createObjectURL(file);
+    if (!srcRight) {
+      srcRight = local;
+      altRight = file.name;
+      locals.push({ file, src: local, side: "right" });
+    } else if (!srcLeft) {
+      srcLeft = local;
+      altLeft = file.name;
+      locals.push({ file, src: local, side: "left" });
+    } else {
+      // Both filled — replace the right side (explicit "paste right" intent).
+      srcRight = local;
+      altRight = file.name;
+      locals.push({ file, src: local, side: "right" });
+      break;
+    }
+  }
+
+  let tr = view.state.tr.setNodeMarkup(pos, undefined, {
+    ...node.attrs,
+    srcLeft,
+    srcRight,
+    altLeft,
+    altRight,
+  });
+  tr = tr.setSelection(NodeSelection.create(tr.doc, pos));
+  view.dispatch(tr);
+
+  onUploadingChange?.(true);
+  void (async () => {
+    try {
+      for (const local of locals) {
+        try {
+          const remote = await uploadFile(local.file);
+          replaceSrc(view, local.src, remote);
+        } catch {
+          // keep preview
+        } finally {
+          URL.revokeObjectURL(local.src);
+        }
+      }
+    } finally {
+      onUploadingChange?.(false);
+    }
+  })();
+
+  return true;
 }
 
 async function pasteOrDropImages(
@@ -133,7 +228,8 @@ async function pasteOrDropImages(
   files: File[],
   onUploadingChange?: (uploading: boolean) => void,
 ) {
-  // Show local previews immediately, then swap to Blob URLs after upload.
+  if (fillCompareWithImages(view, files, onUploadingChange)) return;
+
   const locals = files.map((file) => ({
     file,
     src: URL.createObjectURL(file),
@@ -161,6 +257,51 @@ async function pasteOrDropImages(
   }
 }
 
+async function pasteOrDropFiles(
+  view: EditorView,
+  files: File[],
+  onUploadingChange?: (uploading: boolean) => void,
+) {
+  const fileType = view.state.schema.nodes.fileAttachment;
+  if (!fileType || !files.length) return;
+
+  const locals = files.map((file) => ({
+    file,
+    href: URL.createObjectURL(file),
+    filename: file.name || "file",
+    size: file.size,
+    mime: file.type || "",
+  }));
+
+  let tr = view.state.tr;
+  for (const local of locals) {
+    const node = fileType.create({
+      href: local.href,
+      filename: local.filename,
+      size: local.size,
+      mime: local.mime,
+    });
+    tr = tr.replaceSelectionWith(node).scrollIntoView();
+  }
+  view.dispatch(tr);
+
+  onUploadingChange?.(true);
+  try {
+    for (const local of locals) {
+      try {
+        const remote = await uploadFile(local.file);
+        replaceSrc(view, local.href, remote);
+      } catch {
+        // keep local
+      } finally {
+        URL.revokeObjectURL(local.href);
+      }
+    }
+  } finally {
+    onUploadingChange?.(false);
+  }
+}
+
 export function MarkdownEditor({
   value,
   onChange,
@@ -177,11 +318,11 @@ export function MarkdownEditor({
         allowBase64: false,
       }),
       ImageCompare,
+      FileAttachment,
       EditorLink.configure({
         openOnClick: false,
         autolink: true,
         linkOnPaste: true,
-        // Type/paste `[label](url)` → real link mark (not escaped plain text).
         markdownLinks: true,
       }),
       Placeholder.configure({
@@ -199,17 +340,31 @@ export function MarkdownEditor({
         class: "md-editor",
       },
       handlePaste: (view, event) => {
-        const files = collectImageFiles(event.clipboardData?.items);
+        const files = collectFiles(event.clipboardData?.items);
         if (!files.length) return false;
+        const images = files.filter(isImageFile);
+        const others = files.filter((f) => !isImageFile(f));
         event.preventDefault();
-        void pasteOrDropImages(view, files, onUploadingChange);
+        if (images.length) {
+          void pasteOrDropImages(view, images, onUploadingChange);
+        }
+        if (others.length) {
+          void pasteOrDropFiles(view, others, onUploadingChange);
+        }
         return true;
       },
       handleDrop: (view, event) => {
-        const files = collectImageFiles(event.dataTransfer?.files);
+        const files = collectFiles(event.dataTransfer?.files);
         if (!files.length) return false;
+        const images = files.filter(isImageFile);
+        const others = files.filter((f) => !isImageFile(f));
         event.preventDefault();
-        void pasteOrDropImages(view, files, onUploadingChange);
+        if (images.length) {
+          void pasteOrDropImages(view, images, onUploadingChange);
+        }
+        if (others.length) {
+          void pasteOrDropFiles(view, others, onUploadingChange);
+        }
         return true;
       },
     },
