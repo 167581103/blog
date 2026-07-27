@@ -4,7 +4,10 @@ export default function ArticleLoading() {
       <header className="read-bar">
         <div className="skeleton skeleton-icon" />
         <div className="skeleton skeleton-title" />
-        <div className="skeleton skeleton-icon" />
+        <div className="read-bar-actions">
+          <div className="skeleton skeleton-icon" />
+          <div className="skeleton skeleton-icon" />
+        </div>
       </header>
       <main className="read-body">
         <div className="skeleton skeleton-line" />
