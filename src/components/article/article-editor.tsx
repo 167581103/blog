@@ -16,7 +16,7 @@ import {
   SaveIcon,
   TrashIcon,
 } from "../chrome/icons";
-import { CategoryPicker } from "./category-picker";
+import { CategoryPicker, type CategoryPickerHandle } from "./category-picker";
 import { EditorSaveMeta } from "./editor-save-meta";
 import { formatEditStamp } from "@/lib/format-time";
 import type { Article, ArticleStatus, Category } from "@/lib/types";
@@ -57,6 +57,7 @@ export function ArticleEditor({
   );
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [dirty, setDirty] = useState(false);
+  const categoryPickerRef = useRef<CategoryPickerHandle>(null);
 
   const titleRef = useRef(title);
   const contentRef = useRef(content);
@@ -131,6 +132,16 @@ export function ArticleEditor({
 
       startTransition(async () => {
         try {
+          // Flush column input first — clicking Save blurs the picker and used
+          // to race so drafts were stamped with null categorySlug.
+          if (!slugRef.current || intent === "release") {
+            const flushed = await categoryPickerRef.current?.flush();
+            if (flushed !== undefined) {
+              categorySlugRef.current = flushed;
+              setCategorySlug(flushed);
+            }
+          }
+
           const currentSlug = slugRef.current;
           const body: Record<string, unknown> = {
             title: nextTitle,
@@ -197,6 +208,7 @@ export function ArticleEditor({
 
           if (!currentSlug || saved.slug !== currentSlug) {
             router.replace(`/articles/${saved.slug}/edit`);
+            router.refresh();
           }
         } finally {
           saveInFlightRef.current = false;
@@ -289,6 +301,7 @@ export function ArticleEditor({
             <ChevronLeftIcon className="h-5 w-5" />
           </Link>
           <CategoryPicker
+            ref={categoryPickerRef}
             categories={categories}
             value={categorySlug}
             onChange={setCategorySlug}

@@ -1,8 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { CategoryPicker } from "./category-picker";
+import { useRef, useState, useTransition } from "react";
+import { CategoryPicker, type CategoryPickerHandle } from "./category-picker";
 import type { Category } from "@/lib/types";
 
 /** Read-bar column control: rename catalog + move article immediately. */
@@ -16,6 +16,7 @@ export function ReadCategoryControl({
   categorySlug: string | null;
 }) {
   const router = useRouter();
+  const pickerRef = useRef<CategoryPickerHandle>(null);
   const [categories, setCategories] = useState(initialCategories);
   const [categorySlug, setCategorySlug] = useState(initialSlug);
   const [, startTransition] = useTransition();
@@ -43,6 +44,7 @@ export function ReadCategoryControl({
 
   return (
     <CategoryPicker
+      ref={pickerRef}
       categories={categories}
       value={categorySlug}
       onChange={(next) => {
