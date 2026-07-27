@@ -12,8 +12,9 @@ import { ReadCategoryControl } from "@/components/article/read-category-control"
 import { ReadDeleteControl } from "@/components/article/read-delete-control";
 import { ChevronLeftIcon } from "@/components/chrome/icons";
 import { auth } from "@/lib/auth";
+import { countArticlesByCategory } from "@/lib/category-counts";
 import { listComments } from "@/lib/db/comments";
-import { getArticle, listCategories } from "@/lib/storage";
+import { getArticle, listArticles, listCategories } from "@/lib/storage";
 import { publicContent, publicTitle } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -35,10 +36,11 @@ export async function generateMetadata({ params }: Props) {
 
 export default async function ArticlePage({ params }: Props) {
   const { slug } = await params;
-  const [article, session, categories] = await Promise.all([
+  const [article, session, categories, allArticles] = await Promise.all([
     getArticle(slug),
     auth(),
     listCategories(),
+    listArticles(true),
   ]);
   if (!article) notFound();
 
@@ -71,6 +73,9 @@ export default async function ArticlePage({ params }: Props) {
 
   const liveTitle = publicTitle(article);
   const liveContent = publicContent(article);
+  const articleCounts = isAdmin
+    ? countArticlesByCategory(allArticles)
+    : {};
 
   return (
     <div className="read-shell">
@@ -84,6 +89,7 @@ export default async function ArticlePage({ params }: Props) {
               articleSlug={article.slug}
               categories={categories}
               categorySlug={article.categorySlug}
+              articleCounts={articleCounts}
             />
           ) : null}
         </div>

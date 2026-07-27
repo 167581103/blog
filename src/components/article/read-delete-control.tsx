@@ -16,7 +16,7 @@ export function ReadDeleteControl({ slug }: { slug: string }) {
         startTransition(async () => {
           const res = await fetch(`/api/articles/${slug}`, { method: "DELETE" });
           if (!res.ok) return;
-          router.push("/");
+          router.replace("/");
           router.refresh();
         });
       }}

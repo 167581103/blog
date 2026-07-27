@@ -226,6 +226,13 @@ textarea {
   margin-bottom: 0.35rem;
 }
 
+.article-section-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  flex: none;
+}
+
 .article-section-head.is-drag-handle {
   cursor: grab;
   user-select: none;
@@ -703,7 +710,14 @@ textarea {
 .category-picker {
   position: relative;
   min-width: 0;
-  max-width: 9.5rem;
+  max-width: 14rem;
+}
+
+.category-picker-field {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
 }
 
 .category-picker-input {
@@ -725,6 +739,7 @@ textarea {
 
 .category-picker:hover .category-picker-input,
 .category-picker.is-open .category-picker-input,
+.category-picker.is-switching .category-picker-input,
 .category-picker-input:focus {
   color: var(--foreground);
   border-bottom-color: var(--foreground);
@@ -739,7 +754,7 @@ textarea {
   top: calc(100% + 0.35rem);
   left: 0;
   z-index: 20;
-  min-width: max(100%, 8rem);
+  min-width: max(100%, 11rem);
   margin: 0;
   padding: 0.35rem 0;
   list-style: none;
@@ -758,9 +773,20 @@ textarea {
   height: 0.35rem;
 }
 
+.category-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding-right: 0.35rem;
+}
+
 .category-picker-option {
-  display: block;
-  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  flex: 1;
+  min-width: 0;
   margin: 0;
   padding: 0.4rem 0.7rem;
   border: 0;
@@ -771,6 +797,20 @@ textarea {
   letter-spacing: -0.01em;
   color: var(--foreground);
   cursor: pointer;
+}
+
+.category-picker-option-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-picker-option-count {
+  flex: none;
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .category-picker-option:hover,
@@ -786,6 +826,42 @@ textarea {
   font-size: 0.7rem;
   color: #b00020;
   white-space: nowrap;
+}
+
+.category-switch-confirm {
+  flex: none;
+}
+
+.delete-control.is-compact .delete-control-trigger-compact,
+.delete-control-trigger-compact {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.delete-control.is-compact .delete-control-trigger-compact:hover,
+.delete-control-trigger-compact:hover {
+  color: var(--foreground);
+  background: var(--soft);
+}
+
+.delete-control.is-compact .delete-control-confirm-btn {
+  width: 1.65rem;
+  height: 1.65rem;
+}
+
+.delete-control.is-compact .delete-control-confirm-btn {
+  margin-right: 0.1rem;
 }
 
 .editor-bar-actions {

@@ -25,6 +25,7 @@ type Props = {
   mode: "create" | "edit";
   article?: Article;
   categories?: Category[];
+  articleCounts?: Record<string, number>;
   /** Preselect from `/articles/new?category=` — placement set on first create. */
   initialCategorySlug?: string | null;
   backHref?: string;
@@ -35,6 +36,7 @@ const AUTOSAVE_MS = 2500;
 export function ArticleEditor({
   article,
   categories: initialCategories = [],
+  articleCounts: initialCounts = {},
   initialCategorySlug = null,
   backHref = "/",
 }: Props) {
@@ -49,6 +51,7 @@ export function ArticleEditor({
     article?.categorySlug ?? initialCategorySlug,
   );
   const [categories, setCategories] = useState(initialCategories);
+  const [articleCounts, setArticleCounts] = useState(initialCounts);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -247,7 +250,7 @@ export function ArticleEditor({
         setError(data?.error || "Failed to delete article");
         return;
       }
-      router.push("/");
+      router.replace("/");
       router.refresh();
     });
   }, [router]);
@@ -297,8 +300,18 @@ export function ArticleEditor({
             ref={categoryPickerRef}
             categories={categories}
             value={categorySlug}
+            articleCounts={articleCounts}
             onChange={setCategorySlug}
-            onCategoriesChange={setCategories}
+            onCategoriesChange={(next) => {
+              setCategories(next);
+              setArticleCounts((current) => {
+                const pruned: Record<string, number> = {};
+                for (const category of next) {
+                  pruned[category.slug] = current[category.slug] ?? 0;
+                }
+                return pruned;
+              });
+            }}
           />
         </div>
 
