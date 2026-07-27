@@ -10,6 +10,7 @@ import {
   deleteLogicalPath,
   isBlobConfigured,
   pathExists,
+  publicBlobUrl,
   putJson,
   readJsonByPath,
 } from "./blob";
@@ -94,44 +95,110 @@ async function writeIndex(articles: Article[], urls: Record<string, string>) {
   await putJson(INDEX_PATH, items);
 }
 
+/** An empty/missing index can mean a lost mirror, but rebuilds are costly. */
+const REBUILD_TTL = 5 * 60 * 1000;
+let lastRebuildAt = 0;
+
+function shouldRebuild() {
+  if (Date.now() - lastRebuildAt < REBUILD_TTL) return false;
+  lastRebuildAt = Date.now();
+  return true;
+}
+
+/** Logical article path for a canonical blob or a `<path>.rev/<file>` entry. */
+function logicalArticlePath(pathname: string): string | null {
+  const revAt = pathname.indexOf(".json.rev/");
+  const logical = revAt >= 0 ? pathname.slice(0, revAt + ".json".length) : pathname;
+  if (!logical.endsWith(".json")) return null;
+  if (logical === INDEX_PATH) return null;
+  return logical;
+}
+
 /**
- * Last-resort rebuild via Advanced `list()`. Avoid calling this while Blob
- * Advanced quota is exhausted — prefer the CDN-backed index.json mirror.
+ * Last-resort rebuild via a single Advanced `list()`. Handles stores where the
+ * canonical mirror is missing and only `<path>.rev/` snapshots survived, then
+ * rewrites the mirrors so later reads stay on the cheap CDN path.
  */
 async function rebuildIndexFromBlobs(): Promise<Article[]> {
+  let listed: { pathname: string; url: string; uploadedAt: Date }[];
   try {
     const auth = await blobAuth();
     const { blobs } = await list({ prefix: ARTICLES_PREFIX, ...auth });
-    const articleBlobs = blobs.filter(
-      (b) =>
-        b.pathname.endsWith(".json") &&
-        b.pathname !== INDEX_PATH &&
-        !b.pathname.includes(".rev/"),
+    listed = blobs;
+  } catch (error) {
+    console.warn(
+      "[blob] article-rebuild-list-failed",
+      error instanceof Error ? `${error.name}: ${error.message}` : String(error),
     );
-    const articles = (
-      await Promise.all(
-        articleBlobs.map(async (b) => {
-          const data = await readJsonByPath<Article>(b.pathname);
-          return data
-            ? { article: normalizeArticle(data), url: b.url }
-            : null;
-        }),
-      )
-    ).filter((x): x is { article: Article; url: string } => Boolean(x));
-
-    const rebuilt = articles.map((x) => x.article);
-    const urls = Object.fromEntries(
-      articles.map((x) => [x.article.slug, x.url]),
-    );
-    try {
-      await writeIndex(rebuilt, urls);
-    } catch {
-      // index write is best-effort (may fail if Advanced is frozen)
-    }
-    return rebuilt;
-  } catch {
     return [];
   }
+
+  // Newest blob per logical article path, canonical or revision.
+  const newestByPath = new Map<string, { url: string; uploadedAt: Date }>();
+  for (const blob of listed) {
+    const logical = logicalArticlePath(blob.pathname);
+    if (!logical) continue;
+    const current = newestByPath.get(logical);
+    const isCanonical = blob.pathname === logical;
+    // Canonical wins ties so a fresh mirror is preferred over old snapshots.
+    if (
+      !current ||
+      blob.uploadedAt.getTime() > current.uploadedAt.getTime() ||
+      (isCanonical &&
+        blob.uploadedAt.getTime() === current.uploadedAt.getTime())
+    ) {
+      newestByPath.set(logical, {
+        url: blob.url,
+        uploadedAt: blob.uploadedAt,
+      });
+    }
+  }
+
+  const recovered = (
+    await Promise.all(
+      [...newestByPath].map(async ([logical, blob]) => {
+        try {
+          const res = await fetch(blob.url, { cache: "no-store" });
+          if (!res.ok) return null;
+          const data = (await res.json()) as Article;
+          if (!data?.slug) return null;
+          return { logical, article: normalizeArticle(data), url: blob.url };
+        } catch {
+          return null;
+        }
+      }),
+    )
+  ).filter(
+    (x): x is { logical: string; article: Article; url: string } => Boolean(x),
+  );
+
+  console.warn(
+    "[blob] article-rebuild",
+    JSON.stringify({ listed: listed.length, recovered: recovered.length }),
+  );
+
+  // Restore canonical mirrors so the next request avoids list() entirely.
+  await Promise.all(
+    recovered.map((x) =>
+      putJson(articlePath(x.article.slug), x.article).catch(() => undefined),
+    ),
+  );
+
+  const rebuilt = recovered.map((x) => x.article);
+  const urls = Object.fromEntries(
+    recovered.map((x) => [x.article.slug, publicArticleUrl(x)]),
+  );
+  try {
+    await writeIndex(rebuilt, urls);
+  } catch {
+    // index write is best-effort (may fail if Advanced is frozen)
+  }
+  return rebuilt;
+}
+
+/** Canonical public URL when resolvable, else the blob URL we just read. */
+function publicArticleUrl(entry: { article: Article; url: string }) {
+  return publicBlobUrl(articlePath(entry.article.slug)) || entry.url;
 }
 
 async function listArticlesUncached(options?: {
@@ -143,9 +210,9 @@ async function listArticlesUncached(options?: {
     const index = await readIndex();
     let articles: Article[];
 
-    // Use any successfully-read index (including empty). Only rebuild when
-    // the index object itself is missing — rebuild uses Advanced `list()`.
-    if (index !== null) {
+    // A missing or empty index may just be a lost canonical mirror, so try one
+    // guarded rebuild; a populated index always wins and costs no list().
+    if (index?.length) {
       articles = index.map((item) => {
         const base: Article = {
           id: item.slug,
@@ -172,8 +239,10 @@ async function listArticlesUncached(options?: {
         };
         return base;
       });
-    } else {
+    } else if (shouldRebuild()) {
       articles = await rebuildIndexFromBlobs();
+    } else {
+      articles = [];
     }
 
     const visible = options?.includeDrafts
