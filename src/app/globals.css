@@ -335,6 +335,37 @@ textarea {
   transform: none;
 }
 
+.delete-control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.delete-confirm {
+  position: absolute;
+  top: calc(100% + 0.2rem);
+  left: 50%;
+  z-index: 30;
+  transform: translateX(-50%);
+  padding-top: 0.35rem;
+}
+
+/* Bridge the gap so hover isn't lost between X and ✓. */
+.delete-confirm::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 0.35rem;
+}
+
+.delete-confirm-check {
+  border: 1px solid var(--line);
+  background: var(--background);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+}
+
 .skeleton {
   background: linear-gradient(
     90deg,
@@ -414,7 +445,8 @@ textarea {
   top: 0;
   z-index: 10;
   display: grid;
-  grid-template-columns: minmax(7rem, 1fr) minmax(0, 2.5fr) auto;
+  /* Equal side rails keep the title optically centered (match editor). */
+  grid-template-columns: minmax(9.5rem, 1fr) minmax(0, 2.5fr) minmax(9.5rem, 1fr);
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 1rem;
@@ -532,6 +564,9 @@ textarea {
 
 .read-title {
   margin: 0;
+  justify-self: center;
+  width: 100%;
+  min-width: 0;
   text-align: center;
   font-family: var(--font-display), sans-serif;
   font-size: 0.95rem;

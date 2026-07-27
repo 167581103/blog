@@ -112,5 +112,5 @@ export async function DELETE(_request: Request, { params }: Params) {
   if (!ok) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, trashed: true });
 }
