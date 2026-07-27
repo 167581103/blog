@@ -7,11 +7,13 @@ import { slugify } from "../slug";
 import {
   assertBlobConfigured,
   blobAuth,
+  blobHostKind,
   deleteLogicalPath,
   isBlobConfigured,
   pathExists,
   publicBlobUrl,
   putJson,
+  readBlobJson,
   readJsonByPath,
 } from "./blob";
 import { putArticleInTrash } from "./trash";
@@ -134,7 +136,10 @@ async function rebuildIndexFromBlobs(): Promise<Article[]> {
   }
 
   // Newest blob per logical article path, canonical or revision.
-  const newestByPath = new Map<string, { url: string; uploadedAt: Date }>();
+  const newestByPath = new Map<
+    string,
+    { pathname: string; url: string; uploadedAt: Date }
+  >();
   for (const blob of listed) {
     const logical = logicalArticlePath(blob.pathname);
     if (!logical) continue;
@@ -148,6 +153,7 @@ async function rebuildIndexFromBlobs(): Promise<Article[]> {
         blob.uploadedAt.getTime() === current.uploadedAt.getTime())
     ) {
       newestByPath.set(logical, {
+        pathname: blob.pathname,
         url: blob.url,
         uploadedAt: blob.uploadedAt,
       });
@@ -157,15 +163,9 @@ async function rebuildIndexFromBlobs(): Promise<Article[]> {
   const recovered = (
     await Promise.all(
       [...newestByPath].map(async ([logical, blob]) => {
-        try {
-          const res = await fetch(blob.url, { cache: "no-store" });
-          if (!res.ok) return null;
-          const data = (await res.json()) as Article;
-          if (!data?.slug) return null;
-          return { logical, article: normalizeArticle(data), url: blob.url };
-        } catch {
-          return null;
-        }
+        const { data } = await readBlobJson<Article>(blob.pathname);
+        if (!data?.slug) return null;
+        return { logical, article: normalizeArticle(data), url: blob.url };
       }),
     )
   ).filter(
@@ -174,7 +174,12 @@ async function rebuildIndexFromBlobs(): Promise<Article[]> {
 
   console.warn(
     "[blob] article-rebuild",
-    JSON.stringify({ listed: listed.length, recovered: recovered.length }),
+    JSON.stringify({
+      listed: listed.length,
+      candidates: newestByPath.size,
+      recovered: recovered.length,
+      hostKind: listed.length ? blobHostKind(listed[0].url) : "none",
+    }),
   );
 
   // Restore canonical mirrors so the next request avoids list() entirely.

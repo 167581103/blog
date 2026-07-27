@@ -114,6 +114,13 @@ function describeError(error: unknown) {
   return String(error);
 }
 
+/** "public" / "private" from a blob URL, without leaking the store id. */
+export function blobHostKind(url: string): string {
+  if (url.includes(".private.blob.vercel-storage.com")) return "private";
+  if (url.includes(".public.blob.vercel-storage.com")) return "public";
+  return "unknown";
+}
+
 /**
  * CDN GET of the canonical public pathname.
  * Counts as a Simple download — not an Advanced list/head/put.
@@ -137,6 +144,60 @@ async function fetchPublicJson<T>(
 
 export function revisionPrefix(pathname: string) {
   return `${pathname}.rev/`;
+}
+
+type BlobAccess = "public" | "private";
+
+/**
+ * Stores can be public or private, and a private store rejects unauthenticated
+ * CDN reads with 403. Remember whichever mode answers so we stop guessing.
+ */
+let preferredAccess: BlobAccess | null =
+  process.env.BLOB_ACCESS === "private"
+    ? "private"
+    : process.env.BLOB_ACCESS === "public"
+      ? "public"
+      : null;
+
+function accessOrder(): BlobAccess[] {
+  return preferredAccess === "private"
+    ? ["private", "public"]
+    : ["public", "private"];
+}
+
+/**
+ * Read JSON through the SDK, which attaches store credentials. Accepts a
+ * pathname or a blob URL and tries both access modes. Counts as Simple ops.
+ */
+export async function readBlobJson<T>(
+  target: string,
+): Promise<{ data: T | null; attempts: string[] }> {
+  const auth = await blobAuth();
+  const attempts: string[] = [];
+
+  for (const access of accessOrder()) {
+    try {
+      const result = await get(target, { access, ...auth });
+      if (!result) {
+        attempts.push(`${access}:404`);
+        continue;
+      }
+      if (result.statusCode === 200 && result.stream) {
+        const data = await streamToJson<T>(result.stream);
+        if (data !== null) {
+          preferredAccess = access;
+          return { data, attempts };
+        }
+        attempts.push(`${access}:unparsable`);
+        continue;
+      }
+      attempts.push(`${access}:${result.statusCode}`);
+    } catch (error) {
+      attempts.push(`${access}:${describeError(error)}`);
+    }
+  }
+
+  return { data: null, attempts };
 }
 
 /** Per-instance guard so a missing mirror costs at most one list per path. */
@@ -170,12 +231,16 @@ async function readFromRevisions<T>(pathname: string): Promise<T | null> {
     const newest = [...blobs].sort(
       (a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime(),
     )[0];
-    const res = await fetch(newest.url, { cache: "no-store" });
-    if (!res.ok) {
-      logBlob("revision-fetch-failed", { pathname, status: res.status });
+    const { data, attempts } = await readBlobJson<T>(newest.pathname);
+    if (data === null) {
+      logBlob("revision-read-failed", {
+        pathname,
+        revision: newest.pathname,
+        hostKind: blobHostKind(newest.url),
+        attempts,
+      });
       return null;
     }
-    const data = (await res.json()) as T;
 
     logBlob("revision-recovered", {
       pathname,
@@ -206,31 +271,22 @@ async function readFromRevisions<T>(pathname: string): Promise<T | null> {
 export async function readJsonByPath<T>(pathname: string): Promise<T | null> {
   assertBlobConfigured();
 
-  const cdn = await fetchPublicJson<T>(pathname);
-  if (cdn.data !== null) return cdn.data;
-
-  let getStatus: number | string = "skipped";
-  try {
-    const auth = await blobAuth();
-    const result = await get(pathname, {
-      access: "public",
-      ...auth,
-    });
-    if (result?.statusCode === 200 && result.stream) {
-      const data = await streamToJson<T>(result.stream);
-      if (data !== null) return data;
-      getStatus = "unparsable";
-    } else {
-      getStatus = result ? result.statusCode : 404;
+  // Skip the anonymous CDN hop entirely once we know the store is private.
+  if (preferredAccess !== "private") {
+    const cdn = await fetchPublicJson<T>(pathname);
+    if (cdn.data !== null) {
+      preferredAccess = "public";
+      return cdn.data;
     }
-  } catch (error) {
-    getStatus = describeError(error);
+    logBlob("cdn-miss", { pathname, cdnStatus: cdn.status });
   }
+
+  const viaSdk = await readBlobJson<T>(pathname);
+  if (viaSdk.data !== null) return viaSdk.data;
 
   logBlob("canonical-miss", {
     pathname,
-    cdnStatus: cdn.status,
-    getStatus,
+    attempts: viaSdk.attempts,
     hasPublicUrl: Boolean(publicBlobUrl(pathname)),
   });
 
@@ -262,40 +318,40 @@ export async function deleteLogicalPath(pathname: string) {
 }
 
 /**
- * Write JSON to the canonical public pathname (one Advanced put).
+ * Write JSON to the canonical pathname (one Advanced put).
  * No per-write revision list/prune — that was burning quota on every save.
  */
 export async function putJson(pathname: string, data: unknown) {
   const auth = await blobAuth();
   const body = JSON.stringify(data, null, 2);
+  const errors: string[] = [];
 
-  return put(pathname, body, {
-    access: "public",
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    contentType: "application/json",
-    cacheControlMaxAge: ARTICLE_CACHE_MAX_AGE,
-    ...auth,
-  });
-}
-
-export async function pathExists(pathname: string): Promise<boolean> {
-  const url = publicBlobUrl(pathname);
-  if (url) {
+  for (const access of accessOrder()) {
     try {
-      const res = await fetch(url, {
-        method: "HEAD",
-        next: { revalidate: ARTICLE_CACHE_MAX_AGE },
+      const result = await put(pathname, body, {
+        access,
+        addRandomSuffix: false,
+        allowOverwrite: true,
+        contentType: "application/json",
+        cacheControlMaxAge: ARTICLE_CACHE_MAX_AGE,
+        ...auth,
       });
-      if (res.ok) return true;
-    } catch {
-      // fall through
+      preferredAccess = access;
+      return result;
+    } catch (error) {
+      errors.push(`${access}:${describeError(error)}`);
     }
   }
 
+  throw new Error(`Blob write failed for ${pathname} (${errors.join(" | ")})`);
+}
+
+export async function pathExists(pathname: string): Promise<boolean> {
   try {
     const auth = await blobAuth();
-    await head(pathname, auth);
+    // head() asks the Blob API for metadata, so it works for either access mode.
+    const meta = await head(pathname, auth);
+    preferredAccess = blobHostKind(meta.url) === "private" ? "private" : "public";
     return true;
   } catch {
     return false;
@@ -308,25 +364,6 @@ export async function latestRevisionBlob(pathname: string): Promise<{
   pathname: string;
 } | null> {
   if (!isBlobConfigured()) return null;
-
-  const url = publicBlobUrl(pathname);
-  if (url) {
-    try {
-      const res = await fetch(url, {
-        method: "HEAD",
-        next: { revalidate: ARTICLE_CACHE_MAX_AGE },
-      });
-      if (res.ok) {
-        return {
-          url,
-          uploadedAt: new Date(),
-          pathname,
-        };
-      }
-    } catch {
-      // fall through
-    }
-  }
 
   try {
     const auth = await blobAuth();
