@@ -10,7 +10,8 @@ type Props = {
 };
 
 /**
- * Trash → click → becomes X while a confirm strip extends with ✓.
+ * Trash → click → X stays where the trash was; ✓ extends beside it.
+ * (In right-aligned bars the strip grows left so X does not slide.)
  * Only an explicit click dismisses (outside / X / confirm). Mouse leave does not.
  */
 export function DeleteControl({ disabled, busy, onConfirm }: Props) {
@@ -48,26 +49,6 @@ export function DeleteControl({ disabled, busy, onConfirm }: Props) {
       ref={rootRef}
       className={`delete-control${armed ? " is-armed" : ""}`}
     >
-      <button
-        type="button"
-        className="icon-btn icon-btn-motion delete-control-trigger"
-        aria-label={armed ? "Cancel delete" : "Delete"}
-        title={armed ? "Cancel delete" : "Delete"}
-        aria-expanded={armed}
-        aria-controls={confirmId}
-        disabled={disabled || busy}
-        onClick={() => {
-          if (disabled || busy) return;
-          setArmed((value) => !value);
-        }}
-      >
-        {armed ? (
-          <XIcon className="h-5 w-5" />
-        ) : (
-          <TrashIcon className="h-5 w-5" />
-        )}
-      </button>
-
       <div
         id={confirmId}
         className="delete-control-extend"
@@ -92,6 +73,26 @@ export function DeleteControl({ disabled, busy, onConfirm }: Props) {
           </button>
         </div>
       </div>
+
+      <button
+        type="button"
+        className="icon-btn icon-btn-motion delete-control-trigger"
+        aria-label={armed ? "Cancel delete" : "Delete"}
+        title={armed ? "Cancel delete" : "Delete"}
+        aria-expanded={armed}
+        aria-controls={confirmId}
+        disabled={disabled || busy}
+        onClick={() => {
+          if (disabled || busy) return;
+          setArmed((value) => !value);
+        }}
+      >
+        {armed ? (
+          <XIcon className="h-5 w-5" />
+        ) : (
+          <TrashIcon className="h-5 w-5" />
+        )}
+      </button>
     </div>
   );
 }

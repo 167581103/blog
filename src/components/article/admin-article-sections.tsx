@@ -5,17 +5,12 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { PlusIcon } from "../chrome/icons";
 import {
-  appendCategoryToRow,
-  extractCategoryToSoloRow,
-  insertCategoryAsRow,
-  moveCategoryBefore,
+  placeCategory,
+  type CategoryDropTarget,
   type CategoryLayout,
 } from "@/lib/category-layout";
 import { formatReleaseDate } from "@/lib/format-time";
-import {
-  hasUnpublishedChanges,
-  type Article,
-} from "@/lib/types";
+import { hasUnpublishedChanges, type Article } from "@/lib/types";
 import { buildArticleRows, type ArticleGroup } from "./article-groups";
 
 type Props = {
@@ -23,21 +18,54 @@ type Props = {
   layout: CategoryLayout;
 };
 
-type DropTarget =
-  | { kind: "before"; slug: string }
-  | { kind: "append"; rowIndex: number }
-  | { kind: "new-row"; rowIndex: number };
+/**
+ * Resolve which edge of a column the pointer is on.
+ * Top band → park as its own row above this column's row.
+ * Left / right → share this column's row (horizontal).
+ */
+function dropTargetFromPointer(
+  clientX: number,
+  clientY: number,
+  el: HTMLElement,
+  slug: string,
+): CategoryDropTarget {
+  const rect = el.getBoundingClientRect();
+  const x = clientX - rect.left;
+  const y = clientY - rect.top;
+  const topBand = Math.min(32, Math.max(16, rect.height * 0.25));
+
+  if (y < topBand) {
+    return { mode: "solo-before", anchor: slug };
+  }
+  if (x < rect.width / 2) {
+    return { mode: "inline-before", anchor: slug };
+  }
+  return { mode: "inline-after", anchor: slug };
+}
+
+function sameTarget(a: CategoryDropTarget | null, b: CategoryDropTarget) {
+  if (!a || a.mode !== b.mode) return false;
+  return a.anchor === b.anchor;
+}
 
 /**
- * Admin homepage: row-based columns (1–3 per row), drag to place freely.
- * New columns default to their own full-width row (classic stack).
+ * Admin homepage columns. Drag a header to move:
+ * - top edge of a column → own full-width row above that row
+ * - left / right half → place horizontally in that row (max 3)
+ * - bottom pad → own row at the end
+ *
+ * DOM stays stable while dragging (no slot mount/unmount), so every
+ * column — including the last — can start a drag. Only the active
+ * edge paints a dark indicator; no gray filler boxes.
  */
 export function AdminArticleSections({ articles, layout }: Props) {
   const router = useRouter();
   const [rows, setRows] = useState(layout.rows);
   const [categories, setCategories] = useState(layout.categories);
   const [draggingSlug, setDraggingSlug] = useState<string | null>(null);
-  const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
+  const [dropTarget, setDropTarget] = useState<CategoryDropTarget | null>(
+    null,
+  );
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -46,9 +74,11 @@ export function AdminArticleSections({ articles, layout }: Props) {
   }, [layout]);
 
   const currentLayout: CategoryLayout = { categories, rows };
-  const { rows: articleRows, loose } = buildArticleRows(articles, currentLayout, {
-    isAdmin: true,
-  });
+  const { rows: articleRows, loose } = buildArticleRows(
+    articles,
+    currentLayout,
+    { isAdmin: true },
+  );
 
   async function persistRows(nextRows: string[][]) {
     const previous = rows;
@@ -74,65 +104,19 @@ export function AdminArticleSections({ articles, layout }: Props) {
     }
   }
 
-  function applyDrop(from: string, target: DropTarget) {
-    let next: string[][];
-    if (target.kind === "before") {
-      next = moveCategoryBefore(rows, from, target.slug);
-    } else if (target.kind === "append") {
-      next = appendCategoryToRow(rows, from, target.rowIndex);
-    } else {
-      next = insertCategoryAsRow(rows, from, target.rowIndex);
-    }
+  function commitDrop(from: string, target: CategoryDropTarget) {
+    const next = placeCategory(rows, from, target);
     if (JSON.stringify(next) !== JSON.stringify(rows)) {
       void persistRows(next);
     }
   }
 
-  function popOutSolo(slug: string) {
-    const next = extractCategoryToSoloRow(rows, slug);
-    if (JSON.stringify(next) !== JSON.stringify(rows)) {
-      void persistRows(next);
-    }
+  function clearDrag() {
+    setDraggingSlug(null);
+    setDropTarget(null);
   }
 
   let stagger = 0;
-
-  function renderInsert(rowIndex: number) {
-    const active =
-      Boolean(draggingSlug) &&
-      dropTarget?.kind === "new-row" &&
-      dropTarget.rowIndex === rowIndex;
-
-    return (
-      <div
-        className={`article-row-insert${active ? " is-active" : ""}`}
-        onDragOver={(event) => {
-          if (!draggingSlug) return;
-          event.preventDefault();
-          event.stopPropagation();
-          event.dataTransfer.dropEffect = "move";
-          setDropTarget({ kind: "new-row", rowIndex });
-        }}
-        onDragLeave={() => {
-          setDropTarget((current) =>
-            current?.kind === "new-row" && current.rowIndex === rowIndex
-              ? null
-              : current,
-          );
-        }}
-        onDrop={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          const from =
-            event.dataTransfer.getData("text/plain") || draggingSlug;
-          setDraggingSlug(null);
-          setDropTarget(null);
-          if (!from) return;
-          applyDrop(from, { kind: "new-row", rowIndex });
-        }}
-      />
-    );
-  }
 
   return (
     <div className={`article-sections-wrap${pending ? " is-saving-order" : ""}`}>
@@ -145,97 +129,66 @@ export function AdminArticleSections({ articles, layout }: Props) {
         </Link>
       </div>
 
-      <div
-        className={`article-rows${draggingSlug ? " is-reordering" : ""}`}
-      >
-        {articleRows.map((row, visualIndex) => {
-          // Map visual row back to layout row index via first draggable slug.
-          const anchorSlug = row.groups.find((g) => g.categorySlug)?.categorySlug;
-          const layoutRowIndex = anchorSlug
-            ? rows.findIndex((r) => r.includes(anchorSlug))
-            : visualIndex;
-          const cols = row.groups.length;
+      <div className="article-rows">
+        {articleRows.map((row) => (
+          <div
+            key={row.key}
+            className="article-row"
+            style={{ ["--cols" as string]: row.groups.length }}
+          >
+            {row.groups.map((group) => (
+              <CategorySection
+                key={group.key}
+                group={group}
+                stagger={stagger++}
+                draggingSlug={draggingSlug}
+                dropTarget={dropTarget}
+                onDragStart={(slug) => {
+                  setDraggingSlug(slug);
+                  setDropTarget(null);
+                }}
+                onDragEnd={clearDrag}
+                onDropTarget={(target) => {
+                  setDropTarget((current) =>
+                    sameTarget(current, target) ? current : target,
+                  );
+                }}
+                onDrop={(from, target) => {
+                  clearDrag();
+                  commitDrop(from, target);
+                }}
+              />
+            ))}
+          </div>
+        ))}
 
-          return (
-            <div key={row.key}>
-              {renderInsert(layoutRowIndex)}
-
-              <div
-                className="article-row"
-                style={{ ["--cols" as string]: cols }}
-              >
-                {row.groups.map((group) => (
-                  <CategorySection
-                    key={group.key}
-                    group={group}
-                    stagger={stagger++}
-                    draggingSlug={draggingSlug}
-                    dropTarget={dropTarget}
-                    onDragStart={(slug) => setDraggingSlug(slug)}
-                    onDragEnd={() => {
-                      setDraggingSlug(null);
-                      setDropTarget(null);
-                    }}
-                    onDragOverBefore={(slug) =>
-                      setDropTarget({ kind: "before", slug })
-                    }
-                    onDropBefore={(from, slug) => {
-                      setDraggingSlug(null);
-                      setDropTarget(null);
-                      applyDrop(from, { kind: "before", slug });
-                    }}
-                    onPopOutSolo={popOutSolo}
-                  />
-                ))}
-
-                {draggingSlug &&
-                layoutRowIndex >= 0 &&
-                (rows[layoutRowIndex]?.length ?? 0) < 3 &&
-                !rows[layoutRowIndex]?.includes(draggingSlug) ? (
-                  <div
-                    className={`article-row-append${
-                      dropTarget?.kind === "append" &&
-                      dropTarget.rowIndex === layoutRowIndex
-                        ? " is-active"
-                        : ""
-                    }`}
-                    onDragOver={(event) => {
-                      event.preventDefault();
-                      event.dataTransfer.dropEffect = "move";
-                      setDropTarget({
-                        kind: "append",
-                        rowIndex: layoutRowIndex,
-                      });
-                    }}
-                    onDragLeave={() => {
-                      setDropTarget((current) =>
-                        current?.kind === "append" &&
-                        current.rowIndex === layoutRowIndex
-                          ? null
-                          : current,
-                      );
-                    }}
-                    onDrop={(event) => {
-                      event.preventDefault();
-                      const from =
-                        event.dataTransfer.getData("text/plain") ||
-                        draggingSlug;
-                      setDraggingSlug(null);
-                      setDropTarget(null);
-                      if (!from) return;
-                      applyDrop(from, {
-                        kind: "append",
-                        rowIndex: layoutRowIndex,
-                      });
-                    }}
-                  />
-                ) : null}
-              </div>
-            </div>
-          );
-        })}
-
-        {renderInsert(rows.length)}
+        <div
+          className={`article-row-end${
+            dropTarget?.mode === "solo-before" && dropTarget.anchor === null
+              ? " is-active"
+              : ""
+          }`}
+          onDragOver={(event) => {
+            if (!draggingSlug) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "move";
+            const target: CategoryDropTarget = {
+              mode: "solo-before",
+              anchor: null,
+            };
+            setDropTarget((current) =>
+              sameTarget(current, target) ? current : target,
+            );
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            const from =
+              event.dataTransfer.getData("text/plain") || draggingSlug;
+            clearDrag();
+            if (!from) return;
+            commitDrop(from, { mode: "solo-before", anchor: null });
+          }}
+        />
       </div>
 
       {loose ? (
@@ -248,9 +201,8 @@ export function AdminArticleSections({ articles, layout }: Props) {
               dropTarget={null}
               onDragStart={() => {}}
               onDragEnd={() => {}}
-              onDragOverBefore={() => {}}
-              onDropBefore={() => {}}
-              onPopOutSolo={() => {}}
+              onDropTarget={() => {}}
+              onDrop={() => {}}
             />
           </div>
         </div>
@@ -266,26 +218,34 @@ function CategorySection({
   dropTarget,
   onDragStart,
   onDragEnd,
-  onDragOverBefore,
-  onDropBefore,
-  onPopOutSolo,
+  onDropTarget,
+  onDrop,
 }: {
   group: ArticleGroup;
   stagger: number;
   draggingSlug: string | null;
-  dropTarget: DropTarget | null;
+  dropTarget: CategoryDropTarget | null;
   onDragStart: (slug: string) => void;
   onDragEnd: () => void;
-  onDragOverBefore: (slug: string) => void;
-  onDropBefore: (from: string, slug: string) => void;
-  onPopOutSolo: (slug: string) => void;
+  onDropTarget: (target: CategoryDropTarget) => void;
+  onDrop: (from: string, target: CategoryDropTarget) => void;
 }) {
-  const isDragging = draggingSlug === group.categorySlug;
-  const isOver =
-    dropTarget?.kind === "before" &&
-    dropTarget.slug === group.categorySlug &&
-    draggingSlug &&
-    draggingSlug !== group.categorySlug;
+  const slug = group.categorySlug;
+  const isDragging = Boolean(slug && draggingSlug === slug);
+  const isForeignDrag = Boolean(
+    draggingSlug && slug && draggingSlug !== slug,
+  );
+
+  const edge =
+    isForeignDrag && dropTarget && dropTarget.mode !== "solo-before"
+      ? dropTarget.anchor === slug
+        ? dropTarget.mode
+        : null
+      : isForeignDrag &&
+          dropTarget?.mode === "solo-before" &&
+          dropTarget.anchor === slug
+        ? "solo-before"
+        : null;
 
   return (
     <section
@@ -293,25 +253,40 @@ function CategorySection({
         "article-section",
         group.draggable ? "article-section-sortable" : "",
         isDragging ? "is-dragging" : "",
-        isOver ? "is-drop-target" : "",
+        edge === "solo-before" ? "is-drop-solo" : "",
+        edge === "inline-before" ? "is-drop-before" : "",
+        edge === "inline-after" ? "is-drop-after" : "",
       ]
         .filter(Boolean)
         .join(" ")}
       onDragOver={(event) => {
-        if (!group.draggable || !draggingSlug || !group.categorySlug) return;
+        if (!group.draggable || !draggingSlug || !slug) return;
+        if (draggingSlug === slug) return;
         event.preventDefault();
         event.dataTransfer.dropEffect = "move";
-        onDragOverBefore(group.categorySlug);
+        onDropTarget(
+          dropTargetFromPointer(
+            event.clientX,
+            event.clientY,
+            event.currentTarget,
+            slug,
+          ),
+        );
       }}
       onDrop={(event) => {
         event.preventDefault();
-        if (!group.categorySlug) return;
-        const from = event.dataTransfer.getData("text/plain") || draggingSlug;
-        if (!from || from === group.categorySlug) {
+        if (!slug || !draggingSlug || draggingSlug === slug) {
           onDragEnd();
           return;
         }
-        onDropBefore(from, group.categorySlug);
+        const from = event.dataTransfer.getData("text/plain") || draggingSlug;
+        const target = dropTargetFromPointer(
+          event.clientX,
+          event.clientY,
+          event.currentTarget,
+          slug,
+        );
+        onDrop(from, target);
       }}
     >
       <div
@@ -324,22 +299,15 @@ function CategorySection({
           .join(" ")}
         style={{ ["--i" as string]: stagger }}
         draggable={group.draggable}
-        title={
-          group.draggable
-            ? "Drag to rearrange · Double-click for full-width row"
-            : undefined
-        }
+        title={group.draggable ? "Drag to rearrange" : undefined}
         onDragStart={(event) => {
-          if (!group.categorySlug) return;
-          onDragStart(group.categorySlug);
+          if (!slug) return;
+          // Required for HTML5 DnD in Firefox; also keeps drag image stable.
           event.dataTransfer.effectAllowed = "move";
-          event.dataTransfer.setData("text/plain", group.categorySlug);
+          event.dataTransfer.setData("text/plain", slug);
+          onDragStart(slug);
         }}
         onDragEnd={onDragEnd}
-        onDoubleClick={() => {
-          if (!group.categorySlug) return;
-          onPopOutSolo(group.categorySlug);
-        }}
       >
         {group.title ? (
           <h2 className="article-section-title">{group.title}</h2>
@@ -348,8 +316,8 @@ function CategorySection({
         )}
         <Link
           href={
-            group.categorySlug
-              ? `/articles/new?category=${encodeURIComponent(group.categorySlug)}`
+            slug
+              ? `/articles/new?category=${encodeURIComponent(slug)}`
               : "/articles/new"
           }
           className="article-add-plus"

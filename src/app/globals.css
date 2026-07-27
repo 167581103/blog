@@ -135,8 +135,6 @@ textarea {
 
 .article-sections-wrap .article-rows {
   margin: 0;
-  /* Insert strips own the vertical spacing so drops never land in empty gap. */
-  gap: 0;
 }
 
 .article-row {
@@ -152,53 +150,48 @@ textarea {
   }
 }
 
-.article-row-insert {
-  height: 2rem;
-  border-radius: 2px;
-  background: transparent;
-  transition:
-    background-color 0.15s ease,
-    box-shadow 0.15s ease;
+/* Trailing pad: keeps end-of-list solo drops hittable without gray chrome. */
+.article-row-end {
+  height: 1.5rem;
+  border-top: 2px solid transparent;
+  transition: border-color 0.15s ease;
 }
 
-.article-rows.is-reordering .article-row-insert {
-  height: 2.35rem;
-  background: rgba(0, 0, 0, 0.03);
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
-}
-
-.article-row-insert.is-active {
-  background: rgba(0, 0, 0, 0.08);
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.16);
-}
-
-.article-row-append {
-  min-height: 4rem;
-  border: 1px dashed transparent;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
-}
-
-.article-row-append.is-active {
-  border-color: var(--foreground);
-  background: rgba(0, 0, 0, 0.02);
+.article-row-end.is-active {
+  border-top-color: var(--foreground);
 }
 
 .article-section {
   position: relative;
   min-width: 0;
   border-top: 2px solid transparent;
+  box-shadow:
+    inset 2px 0 0 transparent,
+    inset -2px 0 0 transparent;
   transition:
-    border-color 0.2s ease,
-    opacity 0.2s ease,
-    transform 0.2s ease;
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    opacity 0.2s ease;
 }
 
 .article-section.is-dragging {
   opacity: 0.45;
 }
 
-.article-section.is-drop-target {
+.article-section.is-drop-solo {
   border-top-color: var(--foreground);
+}
+
+.article-section.is-drop-before {
+  box-shadow:
+    inset 2px 0 0 var(--foreground),
+    inset -2px 0 0 transparent;
+}
+
+.article-section.is-drop-after {
+  box-shadow:
+    inset 2px 0 0 transparent,
+    inset -2px 0 0 var(--foreground);
 }
 
 .article-section-head {
@@ -376,6 +369,7 @@ textarea {
 .delete-control {
   display: inline-flex;
   align-items: center;
+  flex-direction: row;
   max-width: 100%;
 }
 
@@ -383,7 +377,7 @@ textarea {
   flex: 0 0 auto;
 }
 
-/* Collapsed → extends a bordered ✓ strip beside the trigger. */
+/* ✓ strip sits before the trigger and expands leftward in end-aligned bars. */
 .delete-control-extend {
   display: grid;
   grid-template-columns: 0fr;
@@ -400,6 +394,7 @@ textarea {
   overflow: hidden;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
 }
 
 .delete-control-confirm-btn {
@@ -408,7 +403,7 @@ textarea {
   justify-content: center;
   width: 2.5rem;
   height: 2.5rem;
-  margin: 0 0 0 0.2rem;
+  margin: 0 0.2rem 0 0;
   padding: 0;
   border: 1px solid var(--line);
   border-radius: 0;
