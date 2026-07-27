@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { PageFade } from "@/components/chrome/page-fade";
 import { ArticleComments } from "@/components/article/article-comments";
 import { IconLink } from "@/components/chrome/icon-link";
+import { AccountControl } from "@/components/chrome/account-control";
 import { ShareButton } from "@/components/chrome/share-button";
 import {
   OptimisticArticleBody,
@@ -52,6 +53,15 @@ export default async function ArticlePage({ params }: Props) {
       : null;
   const needsRelogin = Boolean(session?.user?.login && !session.user.githubId);
 
+  const signInHref = `/login?next=${encodeURIComponent(`/articles/${article.slug}`)}`;
+  const accountUser =
+    session?.user?.login && session.user.githubId
+      ? {
+          login: session.user.login,
+          image: session.user.image,
+        }
+      : null;
+
   return (
     <div className="read-shell">
       <header className="read-bar">
@@ -64,7 +74,10 @@ export default async function ArticlePage({ params }: Props) {
           content={article.content}
           editHref={isAdmin ? `/articles/${article.slug}/edit` : undefined}
         />
-        <ShareButton />
+        <div className="read-bar-actions">
+          <ShareButton />
+          <AccountControl user={accountUser} signInHref={signInHref} />
+        </div>
       </header>
 
       <main className="read-body">
