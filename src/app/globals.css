@@ -283,7 +283,7 @@ textarea {
   top: 0;
   z-index: 10;
   display: grid;
-  grid-template-columns: 2.5rem 1fr 2.5rem;
+  grid-template-columns: 2.5rem 1fr auto;
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 1rem;
@@ -291,6 +291,100 @@ textarea {
   backdrop-filter: blur(10px);
   border-bottom: 1px solid transparent;
   transition: border-color 0.3s ease;
+}
+
+.read-bar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  justify-self: end;
+}
+
+.read-bar-signin {
+  display: inline-flex;
+  align-items: center;
+  height: 2.5rem;
+  padding: 0 0.55rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  transition: color 0.2s ease, opacity 0.2s ease;
+}
+
+.read-bar-signin:hover {
+  color: var(--foreground);
+}
+
+.account-control {
+  position: relative;
+}
+
+.account-avatar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+  color: var(--foreground);
+}
+
+.account-avatar {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  object-fit: cover;
+  display: block;
+}
+
+.account-avatar-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--soft);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.account-menu {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  min-width: 9.5rem;
+  padding: 0.55rem 0.15rem 0.35rem;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+  z-index: 20;
+}
+
+.account-menu-login {
+  margin: 0;
+  padding: 0.15rem 0.75rem 0.45rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.account-menu-item {
+  display: block;
+  width: 100%;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  color: var(--foreground);
+}
+
+.account-menu-item:hover {
+  background: var(--soft);
 }
 
 .read-bar:hover {
