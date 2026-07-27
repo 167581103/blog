@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { formatReleaseDate } from "@/lib/format-time";
-import type { Article, Category } from "@/lib/types";
+import { publicTitle, type Article, type Category } from "@/lib/types";
 import { buildArticleGroups } from "./article-groups";
 
 /** Public homepage list — server component, no drag chrome. */
@@ -46,7 +46,9 @@ export function ArticleList({
                     className="article-link"
                     prefetch
                   >
-                    <span className="article-link-title">{article.title}</span>
+                    <span className="article-link-title">
+                      {publicTitle(article)}
+                    </span>
                     {releaseDate ? (
                       <time
                         className="article-release-date"
