@@ -11,6 +11,7 @@ import {
 } from "react";
 import { MarkdownEditorLazy } from "../editor/markdown-editor-lazy";
 import { CheckIcon, ChevronLeftIcon, SaveIcon } from "../chrome/icons";
+import { EditorSaveMeta } from "./editor-save-meta";
 import { formatEditStamp } from "@/lib/format-time";
 import type { Article, ArticleStatus } from "@/lib/types";
 
@@ -218,15 +219,17 @@ export function ArticleEditor({ article, backHref = "/" }: Props) {
   return (
     <div className="editor-shell">
       <header className="editor-bar">
-        <Link
-          href={backHref}
-          prefetch
-          aria-label="Back"
-          title="Back"
-          className="icon-btn icon-btn-motion"
-        >
-          <ChevronLeftIcon className="h-5 w-5" />
-        </Link>
+        <div className="editor-bar-start">
+          <Link
+            href={backHref}
+            prefetch
+            aria-label="Back"
+            title="Back"
+            className="icon-btn icon-btn-motion"
+          >
+            <ChevronLeftIcon className="h-5 w-5" />
+          </Link>
+        </div>
 
         <input
           className="editor-title"
@@ -240,11 +243,7 @@ export function ArticleEditor({ article, backHref = "/" }: Props) {
         />
 
         <div className="editor-bar-actions">
-          {editStamp ? (
-            <span className="editor-save-meta" title="Last saved">
-              {editStamp}
-            </span>
-          ) : null}
+          <EditorSaveMeta stamp={editStamp} />
           <button
             type="button"
             aria-label="Save"

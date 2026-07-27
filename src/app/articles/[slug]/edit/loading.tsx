@@ -2,7 +2,9 @@ export default function EditLoading() {
   return (
     <div className="editor-shell" aria-busy="true" aria-label="Loading editor">
       <header className="editor-bar">
-        <div className="skeleton skeleton-icon" />
+        <div className="editor-bar-start">
+          <div className="skeleton skeleton-icon" />
+        </div>
         <div className="skeleton skeleton-title" />
         <div className="editor-bar-actions">
           <div className="skeleton skeleton-icon" />
