@@ -439,12 +439,17 @@ textarea {
   top: 0;
   z-index: 10;
   display: grid;
-  grid-template-columns: 2.5rem 1fr auto;
+  /* Equal side rails keep the title optically centered. */
+  grid-template-columns: minmax(9.5rem, 1fr) minmax(0, 2.5fr) minmax(9.5rem, 1fr);
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 1rem;
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(10px);
+}
+
+.editor-bar-start {
+  justify-self: start;
 }
 
 .editor-bar-actions {
@@ -455,16 +460,34 @@ textarea {
 }
 
 .editor-save-meta {
-  margin-right: 0.35rem;
+  display: inline-block;
+  width: 7.25rem;
+  margin-right: 0.2rem;
   font-size: 0.75rem;
   letter-spacing: 0.01em;
   color: #b0b0b0;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
   user-select: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.editor-save-meta.is-visible {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .editor-save-meta {
+    transition: none;
+  }
 }
 
 .editor-title {
   width: 100%;
+  min-width: 0;
   border: 0;
   outline: none;
   background: transparent;
