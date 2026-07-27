@@ -116,6 +116,11 @@ function downloadsBlocked() {
   return Date.now() - downloadsBlockedAt < BLOCKED_BACKOFF;
 }
 
+/** True while the store is known to refuse downloads (quota block). */
+export function blobDownloadsBlocked() {
+  return downloadsBlocked();
+}
+
 function noteBlocked(status: number | string) {
   if (String(status).includes("403")) downloadsBlockedAt = Date.now();
 }

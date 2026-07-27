@@ -44,6 +44,21 @@ function describeError(error: unknown) {
   return String(error);
 }
 
+let loggedBackend = false;
+
+/** Log the active backend once per instance so deploys are easy to verify. */
+function noteBackend() {
+  if (loggedBackend) return;
+  loggedBackend = true;
+  console.warn(
+    "[docs] backend",
+    JSON.stringify({
+      postgres: isDbConfigured(),
+      blobFallback: isBlobConfigured(),
+    }),
+  );
+}
+
 export function isDocStoreConfigured() {
   return isDbConfigured() || isBlobConfigured();
 }
@@ -78,6 +93,7 @@ async function writeToDb(pathname: string, data: unknown) {
 }
 
 export async function readDoc<T>(pathname: string): Promise<T | null> {
+  noteBackend();
   if (isDbConfigured()) {
     try {
       const fromDb = await readFromDb<T>(pathname);

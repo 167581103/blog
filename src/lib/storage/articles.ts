@@ -4,7 +4,13 @@ import { randomUUID } from "node:crypto";
 import type { Article, ArticleInput } from "../types";
 import { hasUnpublishedChanges } from "../types";
 import { slugify } from "../slug";
-import { blobAuth, blobHostKind, isBlobConfigured, readBlobJson } from "./blob";
+import {
+  blobAuth,
+  blobDownloadsBlocked,
+  blobHostKind,
+  isBlobConfigured,
+  readBlobJson,
+} from "./blob";
 import {
   assertDocStoreConfigured,
   deleteDoc,
@@ -119,6 +125,9 @@ function logicalArticlePath(pathname: string): string | null {
  * rewrites the mirrors so later reads stay on the cheap CDN path.
  */
 async function rebuildIndexFromBlobs(): Promise<Article[]> {
+  // Listing still succeeds on a blocked store, but every download fails.
+  if (!isBlobConfigured() || blobDownloadsBlocked()) return [];
+
   let listed: { pathname: string; url: string; uploadedAt: Date }[];
   try {
     const auth = await blobAuth();
