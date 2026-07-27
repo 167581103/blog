@@ -1,4 +1,5 @@
 import { PageFade } from "@/components/chrome/page-fade";
+import { AdminArticleSections } from "@/components/article/admin-article-sections";
 import { ArticleList } from "@/components/article/article-list";
 import { OptimisticHome } from "@/components/home/optimistic-home";
 import { auth } from "@/lib/auth";
@@ -26,11 +27,11 @@ export default async function HomePage() {
           content={home.content}
           editHref={isAdmin ? "/home/edit" : undefined}
         />
-        <ArticleList
-          articles={articles}
-          categories={categories}
-          isAdmin={isAdmin}
-        />
+        {isAdmin ? (
+          <AdminArticleSections articles={articles} categories={categories} />
+        ) : (
+          <ArticleList articles={articles} categories={categories} />
+        )}
       </PageFade>
     </main>
   );

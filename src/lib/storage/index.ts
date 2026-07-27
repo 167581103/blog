@@ -10,6 +10,7 @@ export {
   listCategories,
   createCategory,
   renameCategory,
+  reorderCategories,
 } from "./categories";
 export {
   getResumeInfo,

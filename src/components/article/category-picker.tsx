@@ -146,22 +146,6 @@ export function CategoryPicker({
 
       {open && categories.length > 0 ? (
         <ul id={listId} className="category-picker-list" role="listbox">
-          <li>
-            <button
-              type="button"
-              role="option"
-              className={`category-picker-option${!value ? " is-active" : ""}`}
-              aria-selected={!value}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => {
-                onChange(null);
-                setText("");
-                setOpen(false);
-              }}
-            >
-              No column
-            </button>
-          </li>
           {categories.map((category) => (
             <li key={category.slug}>
               <button
@@ -182,6 +166,22 @@ export function CategoryPicker({
               </button>
             </li>
           ))}
+          <li>
+            <button
+              type="button"
+              role="option"
+              className={`category-picker-option is-loose${!value ? " is-active" : ""}`}
+              aria-selected={!value}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                onChange(null);
+                setText("");
+                setOpen(false);
+              }}
+            >
+              Loose
+            </button>
+          </li>
         </ul>
       ) : null}
 

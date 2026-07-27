@@ -20,6 +20,8 @@ type Props = {
   mode: "create" | "edit";
   article?: Article;
   categories?: Category[];
+  /** Preselect from `/articles/new?category=` — placement set on first create. */
+  initialCategorySlug?: string | null;
   backHref?: string;
 };
 
@@ -28,6 +30,7 @@ const AUTOSAVE_MS = 2500;
 export function ArticleEditor({
   article,
   categories: initialCategories = [],
+  initialCategorySlug = null,
   backHref = "/",
 }: Props) {
   const router = useRouter();
@@ -37,9 +40,10 @@ export function ArticleEditor({
   const [articleStatus, setArticleStatus] = useState<ArticleStatus>(
     article?.status ?? "draft",
   );
-  // Official placement only — local until Release; Save/autosave omit it.
+  // Official placement — Release updates it; first create also stamps it so
+  // drafts from a column's + land under that column.
   const [categorySlug, setCategorySlug] = useState<string | null>(
-    article?.categorySlug ?? null,
+    article?.categorySlug ?? initialCategorySlug,
   );
   const [categories, setCategories] = useState(initialCategories);
   const [error, setError] = useState<string | null>(null);
@@ -129,8 +133,9 @@ export function ArticleEditor({
             content: nextContent,
             status: nextStatus,
           };
-          // Placement is not draft state — only commit on Release.
-          if (intent === "release") {
+          // Stamp placement on first create (so column + drafts show up) and
+          // on Release. Later draft saves leave official placement alone.
+          if (!currentSlug || intent === "release") {
             body.categorySlug = categorySlugRef.current;
           }
 
@@ -161,7 +166,7 @@ export function ArticleEditor({
           const saved = data as Article;
           setSlug(saved.slug);
           setArticleStatus(saved.status);
-          if (intent === "release") {
+          if (!currentSlug || intent === "release") {
             setCategorySlug(saved.categorySlug ?? null);
           }
           setLastSavedAt(Date.parse(saved.updatedAt) || Date.now());

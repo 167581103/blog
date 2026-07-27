@@ -89,3 +89,26 @@ export async function renameCategory(
   await writeIndex(next);
   return next[index]!;
 }
+
+/** Persist homepage / picker order. `slugs` must be a permutation of existing categories. */
+export async function reorderCategories(slugs: string[]): Promise<Category[]> {
+  assertBlobConfigured();
+  const categories = await readIndex();
+  if (slugs.length !== categories.length) {
+    throw new Error("Category order must include every column");
+  }
+
+  const bySlug = new Map(categories.map((c) => [c.slug, c]));
+  const next: Category[] = [];
+  for (const slug of slugs) {
+    const category = bySlug.get(slug);
+    if (!category) throw new Error(`Unknown category: ${slug}`);
+    if (next.some((c) => c.slug === slug)) {
+      throw new Error("Duplicate category in order");
+    }
+    next.push(category);
+  }
+
+  await writeIndex(next);
+  return next;
+}
