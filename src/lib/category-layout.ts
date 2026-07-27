@@ -67,6 +67,18 @@ function rowIndexOf(rows: string[][], slug: string): number {
   return rows.findIndex((row) => row.includes(slug));
 }
 
+/** True when applying `target` would not change `rows`. */
+export function isNoopCategoryDrop(
+  rows: string[][],
+  fromSlug: string,
+  target: CategoryDropTarget,
+): boolean {
+  return (
+    JSON.stringify(placeCategory(rows, fromSlug, target)) ===
+    JSON.stringify(rows)
+  );
+}
+
 /**
  * Place `fromSlug` at `target`. Single entry-point for homepage DnD.
  * If an inline target's row is full, falls back to a solo row beside it.
@@ -78,6 +90,17 @@ export function placeCategory(
 ): string[][] {
   if (target.mode !== "solo-before" && target.anchor === fromSlug) {
     return rows;
+  }
+
+  if (target.mode === "solo-before" && target.anchor === fromSlug) {
+    // Top gap of one's own row: peel out of a shared row onto a solo row here.
+    const originalIndex = rowIndexOf(rows, fromSlug);
+    if (originalIndex < 0) return rows;
+    if (rows[originalIndex]!.length <= 1) return rows;
+    const without = removeSlugFromRows(rows, fromSlug);
+    const next = [...without];
+    next.splice(Math.min(originalIndex, next.length), 0, [fromSlug]);
+    return next;
   }
 
   const without = removeSlugFromRows(rows, fromSlug);

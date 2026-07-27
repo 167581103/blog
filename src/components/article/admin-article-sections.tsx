@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { PlusIcon } from "../chrome/icons";
 import {
+  isNoopCategoryDrop,
   placeCategory,
   type CategoryDropTarget,
   type CategoryLayout,
@@ -18,26 +19,14 @@ type Props = {
   layout: CategoryLayout;
 };
 
-/**
- * Resolve which edge of a column the pointer is on.
- * Top band → park as its own row above this column's row.
- * Left / right → share this column's row (horizontal).
- */
-function dropTargetFromPointer(
+/** Left / right half of a column → share that column's row. */
+function inlineTargetFromPointer(
   clientX: number,
-  clientY: number,
   el: HTMLElement,
   slug: string,
 ): CategoryDropTarget {
   const rect = el.getBoundingClientRect();
-  const x = clientX - rect.left;
-  const y = clientY - rect.top;
-  const topBand = Math.min(32, Math.max(16, rect.height * 0.25));
-
-  if (y < topBand) {
-    return { mode: "solo-before", anchor: slug };
-  }
-  if (x < rect.width / 2) {
+  if (clientX - rect.left < rect.width / 2) {
     return { mode: "inline-before", anchor: slug };
   }
   return { mode: "inline-after", anchor: slug };
@@ -48,15 +37,22 @@ function sameTarget(a: CategoryDropTarget | null, b: CategoryDropTarget) {
   return a.anchor === b.anchor;
 }
 
+type DragSession = {
+  slug: string | null;
+  target: CategoryDropTarget | null;
+  committed: boolean;
+};
+
 /**
- * Admin homepage columns. Drag a header to move:
- * - top edge of a column → own full-width row above that row
- * - left / right half → place horizontally in that row (max 3)
- * - bottom pad → own row at the end
+ * Admin homepage columns.
  *
- * DOM stays stable while dragging (no slot mount/unmount), so every
- * column — including the last — can start a drag. Only the active
- * edge paints a dark indicator; no gray filler boxes.
+ * Vertical (own row): dedicated row-gap hit targets — not the CSS gap void,
+ * which cannot receive HTML5 drop events (the usual “indicator but no move”
+ * failure for top/bottom).
+ * Horizontal: left / right half of a column.
+ *
+ * Drop commits the last armed target (refs), including on dragend when the
+ * pointer releases on a non-element gap — so the shown indicator always wins.
  */
 export function AdminArticleSections({ articles, layout }: Props) {
   const router = useRouter();
@@ -67,6 +63,13 @@ export function AdminArticleSections({ articles, layout }: Props) {
     null,
   );
   const [pending, startTransition] = useTransition();
+  const sessionRef = useRef<DragSession>({
+    slug: null,
+    target: null,
+    committed: false,
+  });
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
 
   useEffect(() => {
     setRows(layout.rows);
@@ -81,7 +84,7 @@ export function AdminArticleSections({ articles, layout }: Props) {
   );
 
   async function persistRows(nextRows: string[][]) {
-    const previous = rows;
+    const previous = rowsRef.current;
     setRows(nextRows);
     try {
       const res = await fetch("/api/categories", {
@@ -104,14 +107,51 @@ export function AdminArticleSections({ articles, layout }: Props) {
     }
   }
 
-  function commitDrop(from: string, target: CategoryDropTarget) {
-    const next = placeCategory(rows, from, target);
-    if (JSON.stringify(next) !== JSON.stringify(rows)) {
+  function armTarget(target: CategoryDropTarget) {
+    const slug = sessionRef.current.slug;
+    const currentRows = rowsRef.current;
+    if (!slug || isNoopCategoryDrop(currentRows, slug, target)) {
+      sessionRef.current.target = null;
+      setDropTarget((current) => (current === null ? current : null));
+      return;
+    }
+    sessionRef.current.target = target;
+    setDropTarget((current) =>
+      sameTarget(current, target) ? current : target,
+    );
+  }
+
+  function commitSession() {
+    const { slug, target, committed } = sessionRef.current;
+    if (committed || !slug || !target) return;
+    sessionRef.current.committed = true;
+    const currentRows = rowsRef.current;
+    const next = placeCategory(currentRows, slug, target);
+    if (JSON.stringify(next) !== JSON.stringify(currentRows)) {
       void persistRows(next);
     }
   }
 
-  function clearDrag() {
+  function beginDrag(slug: string) {
+    sessionRef.current = { slug, target: null, committed: false };
+    setDraggingSlug(slug);
+    setDropTarget(null);
+  }
+
+  function endDrag() {
+    // If the browser skipped `drop` (release over a void), still honor the
+    // last indicator the user saw.
+    commitSession();
+    sessionRef.current = { slug: null, target: null, committed: false };
+    setDraggingSlug(null);
+    setDropTarget(null);
+  }
+
+  function acceptDrop(event: React.DragEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    commitSession();
+    sessionRef.current = { slug: null, target: null, committed: true };
     setDraggingSlug(null);
     setDropTarget(null);
   }
@@ -129,65 +169,65 @@ export function AdminArticleSections({ articles, layout }: Props) {
         </Link>
       </div>
 
-      <div className="article-rows">
-        {articleRows.map((row) => (
-          <div
-            key={row.key}
-            className="article-row"
-            style={{ ["--cols" as string]: row.groups.length }}
-          >
-            {row.groups.map((group) => (
-              <CategorySection
-                key={group.key}
-                group={group}
-                stagger={stagger++}
-                draggingSlug={draggingSlug}
-                dropTarget={dropTarget}
-                onDragStart={(slug) => {
-                  setDraggingSlug(slug);
-                  setDropTarget(null);
-                }}
-                onDragEnd={clearDrag}
-                onDropTarget={(target) => {
-                  setDropTarget((current) =>
-                    sameTarget(current, target) ? current : target,
-                  );
-                }}
-                onDrop={(from, target) => {
-                  clearDrag();
-                  commitDrop(from, target);
-                }}
-              />
-            ))}
-          </div>
-        ))}
+      <div className="article-rows article-rows-admin">
+        {articleRows.map((row) => {
+          const anchor =
+            row.groups.find((g) => g.categorySlug)?.categorySlug ?? null;
 
-        <div
-          className={`article-row-end${
+          return (
+            <div key={row.key} className="article-row-block">
+              <RowGap
+                active={
+                  dropTarget?.mode === "solo-before" &&
+                  dropTarget.anchor === anchor &&
+                  anchor !== null
+                }
+                disabled={!draggingSlug}
+                onArm={() => {
+                  if (!anchor) return;
+                  armTarget({ mode: "solo-before", anchor });
+                }}
+                onDrop={acceptDrop}
+              />
+
+              <div
+                className="article-row"
+                style={{ ["--cols" as string]: row.groups.length }}
+              >
+                {row.groups.map((group) => (
+                  <CategorySection
+                    key={group.key}
+                    group={group}
+                    stagger={stagger++}
+                    draggingSlug={draggingSlug}
+                    dropTarget={dropTarget}
+                    onDragStart={beginDrag}
+                    onDragEnd={endDrag}
+                    onArmInline={(el, clientX) => {
+                      if (!group.categorySlug) return;
+                      armTarget(
+                        inlineTargetFromPointer(
+                          clientX,
+                          el,
+                          group.categorySlug,
+                        ),
+                      );
+                    }}
+                    onDrop={acceptDrop}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+
+        <RowGap
+          active={
             dropTarget?.mode === "solo-before" && dropTarget.anchor === null
-              ? " is-active"
-              : ""
-          }`}
-          onDragOver={(event) => {
-            if (!draggingSlug) return;
-            event.preventDefault();
-            event.dataTransfer.dropEffect = "move";
-            const target: CategoryDropTarget = {
-              mode: "solo-before",
-              anchor: null,
-            };
-            setDropTarget((current) =>
-              sameTarget(current, target) ? current : target,
-            );
-          }}
-          onDrop={(event) => {
-            event.preventDefault();
-            const from =
-              event.dataTransfer.getData("text/plain") || draggingSlug;
-            clearDrag();
-            if (!from) return;
-            commitDrop(from, { mode: "solo-before", anchor: null });
-          }}
+          }
+          disabled={!draggingSlug}
+          onArm={() => armTarget({ mode: "solo-before", anchor: null })}
+          onDrop={acceptDrop}
         />
       </div>
 
@@ -201,13 +241,39 @@ export function AdminArticleSections({ articles, layout }: Props) {
               dropTarget={null}
               onDragStart={() => {}}
               onDragEnd={() => {}}
-              onDropTarget={() => {}}
+              onArmInline={() => {}}
               onDrop={() => {}}
             />
           </div>
         </div>
       ) : null}
     </div>
+  );
+}
+
+function RowGap({
+  active,
+  disabled,
+  onArm,
+  onDrop,
+}: {
+  active: boolean;
+  disabled: boolean;
+  onArm: () => void;
+  onDrop: (event: React.DragEvent) => void;
+}) {
+  return (
+    <div
+      className={`article-row-gap${active ? " is-active" : ""}`}
+      onDragOver={(event) => {
+        if (disabled) return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.dataTransfer.dropEffect = "move";
+        onArm();
+      }}
+      onDrop={onDrop}
+    />
   );
 }
 
@@ -218,7 +284,7 @@ function CategorySection({
   dropTarget,
   onDragStart,
   onDragEnd,
-  onDropTarget,
+  onArmInline,
   onDrop,
 }: {
   group: ArticleGroup;
@@ -227,8 +293,8 @@ function CategorySection({
   dropTarget: CategoryDropTarget | null;
   onDragStart: (slug: string) => void;
   onDragEnd: () => void;
-  onDropTarget: (target: CategoryDropTarget) => void;
-  onDrop: (from: string, target: CategoryDropTarget) => void;
+  onArmInline: (el: HTMLElement, clientX: number) => void;
+  onDrop: (event: React.DragEvent) => void;
 }) {
   const slug = group.categorySlug;
   const isDragging = Boolean(slug && draggingSlug === slug);
@@ -243,7 +309,6 @@ function CategorySection({
         "article-section",
         group.draggable ? "article-section-sortable" : "",
         isDragging ? "is-dragging" : "",
-        active === "solo-before" ? "is-drop-solo" : "",
         active === "inline-before" ? "is-drop-before" : "",
         active === "inline-after" ? "is-drop-after" : "",
       ]
@@ -254,30 +319,9 @@ function CategorySection({
         if (draggingSlug === slug) return;
         event.preventDefault();
         event.dataTransfer.dropEffect = "move";
-        onDropTarget(
-          dropTargetFromPointer(
-            event.clientX,
-            event.clientY,
-            event.currentTarget,
-            slug,
-          ),
-        );
+        onArmInline(event.currentTarget, event.clientX);
       }}
-      onDrop={(event) => {
-        event.preventDefault();
-        if (!slug || !draggingSlug || draggingSlug === slug) {
-          onDragEnd();
-          return;
-        }
-        const from = event.dataTransfer.getData("text/plain") || draggingSlug;
-        const target = dropTargetFromPointer(
-          event.clientX,
-          event.clientY,
-          event.currentTarget,
-          slug,
-        );
-        onDrop(from, target);
-      }}
+      onDrop={onDrop}
     >
       <div
         className={[
@@ -292,7 +336,6 @@ function CategorySection({
         title={group.draggable ? "Drag to rearrange" : undefined}
         onDragStart={(event) => {
           if (!slug) return;
-          // Required for HTML5 DnD in Firefox; also keeps drag image stable.
           event.dataTransfer.effectAllowed = "move";
           event.dataTransfer.setData("text/plain", slug);
           onDragStart(slug);
