@@ -110,6 +110,26 @@ export function insertCategoryAsRow(
   return next;
 }
 
+/**
+ * Pull a column out of a shared row onto its own full-width row,
+ * parked at the same vertical position.
+ */
+export function extractCategoryToSoloRow(
+  rows: string[][],
+  slug: string,
+): string[][] {
+  const rowIndex = rows.findIndex((row) => row.includes(slug));
+  if (rowIndex < 0) return rows;
+  const row = rows[rowIndex]!;
+  if (row.length <= 1) return rows;
+
+  const without = removeSlugFromRows(rows, slug);
+  const next = [...without];
+  const insertAt = Math.min(rowIndex, next.length);
+  next.splice(insertAt, 0, [slug]);
+  return next;
+}
+
 /** Default migration: each column alone on its own row (classic stacked layout). */
 export function soloRowsForCategories(categories: Category[]): string[][] {
   return categories.map((c) => [c.slug]);

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { PlusIcon } from "../chrome/icons";
 import {
   appendCategoryToRow,
+  extractCategoryToSoloRow,
   insertCategoryAsRow,
   moveCategoryBefore,
   type CategoryLayout,
@@ -87,7 +88,51 @@ export function AdminArticleSections({ articles, layout }: Props) {
     }
   }
 
+  function popOutSolo(slug: string) {
+    const next = extractCategoryToSoloRow(rows, slug);
+    if (JSON.stringify(next) !== JSON.stringify(rows)) {
+      void persistRows(next);
+    }
+  }
+
   let stagger = 0;
+
+  function renderInsert(rowIndex: number) {
+    const active =
+      Boolean(draggingSlug) &&
+      dropTarget?.kind === "new-row" &&
+      dropTarget.rowIndex === rowIndex;
+
+    return (
+      <div
+        className={`article-row-insert${active ? " is-active" : ""}`}
+        onDragOver={(event) => {
+          if (!draggingSlug) return;
+          event.preventDefault();
+          event.stopPropagation();
+          event.dataTransfer.dropEffect = "move";
+          setDropTarget({ kind: "new-row", rowIndex });
+        }}
+        onDragLeave={() => {
+          setDropTarget((current) =>
+            current?.kind === "new-row" && current.rowIndex === rowIndex
+              ? null
+              : current,
+          );
+        }}
+        onDrop={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const from =
+            event.dataTransfer.getData("text/plain") || draggingSlug;
+          setDraggingSlug(null);
+          setDropTarget(null);
+          if (!from) return;
+          applyDrop(from, { kind: "new-row", rowIndex });
+        }}
+      />
+    );
+  }
 
   return (
     <div className={`article-sections-wrap${pending ? " is-saving-order" : ""}`}>
@@ -100,7 +145,9 @@ export function AdminArticleSections({ articles, layout }: Props) {
         </Link>
       </div>
 
-      <div className="article-rows">
+      <div
+        className={`article-rows${draggingSlug ? " is-reordering" : ""}`}
+      >
         {articleRows.map((row, visualIndex) => {
           // Map visual row back to layout row index via first draggable slug.
           const anchorSlug = row.groups.find((g) => g.categorySlug)?.categorySlug;
@@ -111,41 +158,7 @@ export function AdminArticleSections({ articles, layout }: Props) {
 
           return (
             <div key={row.key}>
-              {draggingSlug ? (
-                <div
-                  className={`article-row-insert${
-                    dropTarget?.kind === "new-row" &&
-                    dropTarget.rowIndex === layoutRowIndex
-                      ? " is-active"
-                      : ""
-                  }`}
-                  onDragOver={(event) => {
-                    event.preventDefault();
-                    event.dataTransfer.dropEffect = "move";
-                    setDropTarget({ kind: "new-row", rowIndex: layoutRowIndex });
-                  }}
-                  onDragLeave={() => {
-                    setDropTarget((current) =>
-                      current?.kind === "new-row" &&
-                      current.rowIndex === layoutRowIndex
-                        ? null
-                        : current,
-                    );
-                  }}
-                  onDrop={(event) => {
-                    event.preventDefault();
-                    const from =
-                      event.dataTransfer.getData("text/plain") || draggingSlug;
-                    setDraggingSlug(null);
-                    setDropTarget(null);
-                    if (!from) return;
-                    applyDrop(from, {
-                      kind: "new-row",
-                      rowIndex: layoutRowIndex,
-                    });
-                  }}
-                />
-              ) : null}
+              {renderInsert(layoutRowIndex)}
 
               <div
                 className="article-row"
@@ -171,6 +184,7 @@ export function AdminArticleSections({ articles, layout }: Props) {
                       setDropTarget(null);
                       applyDrop(from, { kind: "before", slug });
                     }}
+                    onPopOutSolo={popOutSolo}
                   />
                 ))}
 
@@ -221,29 +235,7 @@ export function AdminArticleSections({ articles, layout }: Props) {
           );
         })}
 
-        {draggingSlug ? (
-          <div
-            className={`article-row-insert${
-              dropTarget?.kind === "new-row" && dropTarget.rowIndex === rows.length
-                ? " is-active"
-                : ""
-            }`}
-            onDragOver={(event) => {
-              event.preventDefault();
-              event.dataTransfer.dropEffect = "move";
-              setDropTarget({ kind: "new-row", rowIndex: rows.length });
-            }}
-            onDrop={(event) => {
-              event.preventDefault();
-              const from =
-                event.dataTransfer.getData("text/plain") || draggingSlug;
-              setDraggingSlug(null);
-              setDropTarget(null);
-              if (!from) return;
-              applyDrop(from, { kind: "new-row", rowIndex: rows.length });
-            }}
-          />
-        ) : null}
+        {renderInsert(rows.length)}
       </div>
 
       {loose ? (
@@ -258,6 +250,7 @@ export function AdminArticleSections({ articles, layout }: Props) {
               onDragEnd={() => {}}
               onDragOverBefore={() => {}}
               onDropBefore={() => {}}
+              onPopOutSolo={() => {}}
             />
           </div>
         </div>
@@ -275,6 +268,7 @@ function CategorySection({
   onDragEnd,
   onDragOverBefore,
   onDropBefore,
+  onPopOutSolo,
 }: {
   group: ArticleGroup;
   stagger: number;
@@ -284,6 +278,7 @@ function CategorySection({
   onDragEnd: () => void;
   onDragOverBefore: (slug: string) => void;
   onDropBefore: (from: string, slug: string) => void;
+  onPopOutSolo: (slug: string) => void;
 }) {
   const isDragging = draggingSlug === group.categorySlug;
   const isOver =
@@ -329,6 +324,11 @@ function CategorySection({
           .join(" ")}
         style={{ ["--i" as string]: stagger }}
         draggable={group.draggable}
+        title={
+          group.draggable
+            ? "Drag to rearrange · Double-click for full-width row"
+            : undefined
+        }
         onDragStart={(event) => {
           if (!group.categorySlug) return;
           onDragStart(group.categorySlug);
@@ -336,6 +336,10 @@ function CategorySection({
           event.dataTransfer.setData("text/plain", group.categorySlug);
         }}
         onDragEnd={onDragEnd}
+        onDoubleClick={() => {
+          if (!group.categorySlug) return;
+          onPopOutSolo(group.categorySlug);
+        }}
       >
         {group.title ? (
           <h2 className="article-section-title">{group.title}</h2>

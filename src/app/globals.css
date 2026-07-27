@@ -135,6 +135,8 @@ textarea {
 
 .article-sections-wrap .article-rows {
   margin: 0;
+  /* Insert strips own the vertical spacing so drops never land in empty gap. */
+  gap: 0;
 }
 
 .article-row {
@@ -151,16 +153,23 @@ textarea {
 }
 
 .article-row-insert {
-  height: 0.55rem;
-  margin: -0.35rem 0;
-  border-radius: 999px;
+  height: 2rem;
+  border-radius: 2px;
   background: transparent;
-  transition: background-color 0.15s ease, height 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.article-rows.is-reordering .article-row-insert {
+  height: 2.35rem;
+  background: rgba(0, 0, 0, 0.03);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
 }
 
 .article-row-insert.is-active {
-  height: 0.7rem;
-  background: rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.16);
 }
 
 .article-row-append {
@@ -365,34 +374,57 @@ textarea {
 }
 
 .delete-control {
-  position: relative;
   display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+}
+
+.delete-control-trigger {
+  flex: 0 0 auto;
+}
+
+/* Collapsed → extends a bordered ✓ strip beside the trigger. */
+.delete-control-extend {
+  display: grid;
+  grid-template-columns: 0fr;
+  overflow: hidden;
+  transition: grid-template-columns 0.22s ease;
+}
+
+.delete-control.is-armed .delete-control-extend {
+  grid-template-columns: 1fr;
+}
+
+.delete-control-extend-inner {
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
   align-items: center;
 }
 
-.delete-confirm {
-  position: absolute;
-  top: calc(100% + 0.2rem);
-  left: 50%;
-  z-index: 30;
-  transform: translateX(-50%);
-  padding-top: 0.35rem;
-}
-
-/* Bridge the gap so hover isn't lost between X and ✓. */
-.delete-confirm::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 100%;
-  height: 0.35rem;
-}
-
-.delete-confirm-check {
+.delete-control-confirm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin: 0 0 0 0.2rem;
+  padding: 0;
   border: 1px solid var(--line);
+  border-radius: 0;
   background: var(--background);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+  color: var(--foreground);
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.delete-control-confirm-btn:hover {
+  background: var(--soft);
+}
+
+.delete-control-confirm-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .skeleton {
