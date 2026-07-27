@@ -17,6 +17,7 @@ import {
 } from "../chrome/icons";
 import { DeleteControl } from "../chrome/delete-control";
 import { CategoryPicker, type CategoryPickerHandle } from "./category-picker";
+import { ArticleOutline } from "./article-outline";
 import { EditorSaveMeta } from "./editor-save-meta";
 import { formatEditStamp } from "@/lib/format-time";
 import type { Article, ArticleStatus, Category } from "@/lib/types";
@@ -358,6 +359,7 @@ export function ArticleEditor({
         {uploading ? (
           <p className="editor-status">Uploading image…</p>
         ) : null}
+        <ArticleOutline content={content} />
         <MarkdownEditorLazy
           value={content}
           onChange={(value) => {

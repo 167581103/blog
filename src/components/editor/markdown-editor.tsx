@@ -366,8 +366,12 @@ export function MarkdownEditor({
       }),
       Markdown.configure({
         html: true,
+        // Paste plain markdown as markdown (nice for external notes).
         transformPastedText: true,
-        transformCopiedText: true,
+        // Do NOT rewrite copy to markdown text — that turns an in-editor
+        // heading copy into "## title" plain text, which pastes back as a
+        // paragraph instead of an <h2>. Keep rich clipboard for round-trips.
+        transformCopiedText: false,
       }),
     ],
     content: value || "",
