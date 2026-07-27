@@ -31,6 +31,7 @@ type ArticleIndexItem = {
   status: Article["status"];
   categorySlug: string | null;
   hasUnpublishedChanges: boolean;
+  pinnedAt: string | null;
   updatedAt: string;
   publishedAt: string | null;
   url: string;
@@ -44,6 +45,10 @@ function normalizeCategorySlug(
   return trimmed || null;
 }
 
+function normalizePinnedAt(value: string | null | undefined): string | null {
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
 function normalizeArticle(data: Article): Article {
   return {
     ...data,
@@ -52,6 +57,7 @@ function normalizeArticle(data: Article): Article {
       typeof data.publishedTitle === "string" ? data.publishedTitle : null,
     publishedContent:
       typeof data.publishedContent === "string" ? data.publishedContent : null,
+    pinnedAt: normalizePinnedAt(data.pinnedAt),
   };
 }
 
@@ -79,6 +85,7 @@ function toIndexItem(article: Article, url: string): ArticleIndexItem {
     status: normalized.status,
     categorySlug: normalizeCategorySlug(normalized.categorySlug),
     hasUnpublishedChanges: hasUnpublishedChanges(normalized),
+    pinnedAt: normalizePinnedAt(normalized.pinnedAt),
     updatedAt: normalized.updatedAt,
     publishedAt: normalized.publishedAt,
     url,
@@ -154,6 +161,7 @@ async function listArticlesUncached(options?: {
                 ? "__pending__"
                 : ""
               : null,
+          pinnedAt: normalizePinnedAt(item.pinnedAt),
           createdAt: item.updatedAt,
           updatedAt: item.updatedAt,
           publishedAt: item.publishedAt,
@@ -253,6 +261,7 @@ export async function createArticle(input: ArticleInput): Promise<Article> {
         : null,
     publishedTitle: releasing ? title : null,
     publishedContent: releasing ? input.content : null,
+    pinnedAt: null,
     createdAt: now,
     updatedAt: now,
     publishedAt: releasing ? now : null,
@@ -368,6 +377,32 @@ export async function setArticleCategory(
   const article: Article = {
     ...existing,
     categorySlug: normalizeCategorySlug(categorySlug),
+    updatedAt: now,
+  };
+  const result = await putJson(articlePath(slug), article);
+  await putJson(
+    INDEX_PATH,
+    upsertIndexItems(index || [], article, result.url),
+  );
+  return article;
+}
+
+/** Pin / unpin within the article's column (does not touch body). */
+export async function setArticlePinned(
+  slug: string,
+  pinned: boolean,
+): Promise<Article | null> {
+  assertBlobConfigured();
+  const [existingRaw, index] = await Promise.all([
+    getArticleUncached(slug),
+    readIndex(),
+  ]);
+  if (!existingRaw) return null;
+  const existing = normalizeArticle(existingRaw);
+  const now = new Date().toISOString();
+  const article: Article = {
+    ...existing,
+    pinnedAt: pinned ? now : null,
     updatedAt: now,
   };
   const result = await putJson(articlePath(slug), article);

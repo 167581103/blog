@@ -12,6 +12,7 @@ import {
 } from "@/lib/category-layout";
 import { formatReleaseDate } from "@/lib/format-time";
 import { hasUnpublishedChanges, type Article } from "@/lib/types";
+import { ArticlePinButton } from "./article-pin-button";
 import { buildArticleRows, type ArticleGroup } from "./article-groups";
 
 type Props = {
@@ -377,32 +378,42 @@ function CategorySection({
             return (
               <li
                 key={article.id}
-                className="article-list-item"
+                className={`article-list-item${
+                  article.pinnedAt ? " is-pinned" : ""
+                }`}
                 style={{ ["--i" as string]: stagger + index + 1 }}
               >
-                <Link
-                  href={`/articles/${article.slug}`}
-                  className="article-link"
-                  prefetch
-                  draggable={false}
-                  onDragStart={(event) => event.preventDefault()}
-                >
-                  <span className="article-link-title">{article.title}</span>
-                  <span className="article-link-meta">
-                    {article.status === "draft" ? (
-                      <span className="draft-tag">draft</span>
-                    ) : null}
-                    {edited ? <span className="edited-tag">edited</span> : null}
-                    {releaseDate ? (
-                      <time
-                        className="article-release-date"
-                        dateTime={article.publishedAt ?? undefined}
-                      >
-                        {releaseDate}
-                      </time>
-                    ) : null}
-                  </span>
-                </Link>
+                <div className="article-link-row">
+                  <Link
+                    href={`/articles/${article.slug}`}
+                    className="article-link"
+                    prefetch
+                    draggable={false}
+                    onDragStart={(event) => event.preventDefault()}
+                  >
+                    <span className="article-link-title">{article.title}</span>
+                    <span className="article-link-meta">
+                      {article.status === "draft" ? (
+                        <span className="draft-tag">draft</span>
+                      ) : null}
+                      {edited ? (
+                        <span className="edited-tag">edited</span>
+                      ) : null}
+                      {releaseDate ? (
+                        <time
+                          className="article-release-date"
+                          dateTime={article.publishedAt ?? undefined}
+                        >
+                          {releaseDate}
+                        </time>
+                      ) : null}
+                    </span>
+                  </Link>
+                  <ArticlePinButton
+                    slug={article.slug}
+                    pinned={Boolean(article.pinnedAt)}
+                  />
+                </div>
               </li>
             );
           })}
