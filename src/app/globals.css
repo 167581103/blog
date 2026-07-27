@@ -121,6 +121,89 @@ textarea {
   gap: 0.25rem;
 }
 
+.article-sections {
+  margin: 3.5rem 0 0;
+  display: grid;
+  gap: 2rem;
+}
+
+.article-sections .article-list {
+  margin: 0;
+}
+
+.article-section {
+  position: relative;
+  border-top: 2px solid transparent;
+  transition:
+    border-color 0.2s ease,
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.article-section.is-dragging {
+  opacity: 0.45;
+}
+
+.article-section.is-drop-target {
+  border-top-color: var(--foreground);
+}
+
+.article-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.article-section-head.is-drag-handle {
+  cursor: grab;
+  user-select: none;
+}
+
+.article-section-head.is-drag-handle:active {
+  cursor: grabbing;
+}
+
+.article-section-title {
+  margin: 0;
+  font-family: var(--font-display), sans-serif;
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.article-section-title.is-muted {
+  opacity: 0.7;
+}
+
+.article-add-plus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 1.85rem;
+  height: 1.85rem;
+  border: 1px dashed #c8c8c8;
+  color: var(--muted);
+  transition:
+    color 0.25s ease,
+    border-color 0.25s ease,
+    background-color 0.25s ease;
+}
+
+.article-add-plus:hover {
+  color: var(--foreground);
+  border-color: var(--foreground);
+  background: rgba(0, 0, 0, 0.015);
+}
+
+.category-picker-option.is-loose {
+  color: var(--muted);
+}
+
 .article-list-item {
   animation: page-fade-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
   animation-delay: calc(var(--i, 0) * 55ms);
@@ -282,6 +365,12 @@ textarea {
   margin: 0 auto;
 }
 
+.skeleton-category {
+  width: 5.5rem;
+  height: 1rem;
+  border-radius: 0;
+}
+
 .read-shell {
   min-height: 100vh;
   display: flex;
@@ -440,7 +529,7 @@ textarea {
   z-index: 10;
   display: grid;
   /* Equal side rails keep the title optically centered. */
-  grid-template-columns: minmax(9.5rem, 1fr) minmax(0, 2.5fr) minmax(9.5rem, 1fr);
+  grid-template-columns: minmax(12rem, 1fr) minmax(0, 2.5fr) minmax(9.5rem, 1fr);
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 1rem;
@@ -449,7 +538,89 @@ textarea {
 }
 
 .editor-bar-start {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
   justify-self: start;
+  min-width: 0;
+}
+
+.category-picker {
+  position: relative;
+  min-width: 0;
+  max-width: 9.5rem;
+}
+
+.category-picker-input {
+  width: 100%;
+  min-width: 4.5rem;
+  margin: 0;
+  padding: 0.15rem 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  outline: none;
+  font-family: var(--font-display), sans-serif;
+  font-size: 0.85rem;
+  letter-spacing: -0.01em;
+  color: var(--muted);
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.category-picker:hover .category-picker-input,
+.category-picker.is-open .category-picker-input,
+.category-picker-input:focus {
+  color: var(--foreground);
+  border-bottom-color: var(--foreground);
+}
+
+.category-picker-input::placeholder {
+  color: #b0b0b0;
+}
+
+.category-picker-list {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 20;
+  min-width: max(100%, 8rem);
+  margin: 0;
+  padding: 0.35rem 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  background: var(--background);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.08);
+}
+
+.category-picker-option {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0.4rem 0.7rem;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font-family: var(--font-display), sans-serif;
+  font-size: 0.85rem;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+.category-picker-option:hover,
+.category-picker-option.is-active {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.category-picker-error {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  margin: 0;
+  font-size: 0.7rem;
+  color: #b00020;
+  white-space: nowrap;
 }
 
 .editor-bar-actions {

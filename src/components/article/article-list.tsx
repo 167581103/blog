@@ -1,61 +1,67 @@
 import Link from "next/link";
 import { formatReleaseDate } from "@/lib/format-time";
-import type { Article } from "@/lib/types";
+import type { Article, Category } from "@/lib/types";
+import { buildArticleGroups } from "./article-groups";
 
-/** Server-friendly list — CSS stagger, no client JS. */
+/** Public homepage list — server component, no drag chrome. */
 export function ArticleList({
   articles,
-  isAdmin,
+  categories,
 }: {
   articles: Article[];
-  isAdmin: boolean;
+  categories: Category[];
 }) {
-  if (!articles.length && !isAdmin) {
+  const groups = buildArticleGroups(articles, categories, { isAdmin: false });
+
+  if (!groups.length) {
     return <p className="muted page-fade">No articles yet.</p>;
   }
 
+  let stagger = 0;
+
   return (
-    <ul className="article-list">
-      {isAdmin ? (
-        <li className="article-list-item" style={{ ["--i" as string]: 0 }}>
-          <Link href="/articles/new" className="article-add" prefetch>
-            add a new article
-          </Link>
-        </li>
-      ) : null}
-
-      {articles.map((article, index) => {
-        const releaseDate =
-          article.status === "published"
-            ? formatReleaseDate(article.publishedAt)
-            : null;
-
-        return (
-          <li
-            key={article.id}
-            className="article-list-item"
-            style={{ ["--i" as string]: isAdmin ? index + 1 : index }}
-          >
-            <Link
-              href={`/articles/${article.slug}`}
-              className="article-link"
-              prefetch
+    <div className="article-sections">
+      {groups.map((group) => (
+        <section key={group.key} className="article-section">
+          {group.title ? (
+            <h2
+              className="article-section-title article-list-item"
+              style={{ ["--i" as string]: stagger++ }}
             >
-              <span className="article-link-title">{article.title}</span>
-              {isAdmin && article.status === "draft" ? (
-                <span className="draft-tag">draft</span>
-              ) : releaseDate ? (
-                <time
-                  className="article-release-date"
-                  dateTime={article.publishedAt ?? undefined}
+              {group.title}
+            </h2>
+          ) : null}
+          <ul className="article-list">
+            {group.items.map((article) => {
+              const releaseDate = formatReleaseDate(article.publishedAt);
+              const i = stagger++;
+              return (
+                <li
+                  key={article.id}
+                  className="article-list-item"
+                  style={{ ["--i" as string]: i }}
                 >
-                  {releaseDate}
-                </time>
-              ) : null}
-            </Link>
-          </li>
-        );
-      })}
-    </ul>
+                  <Link
+                    href={`/articles/${article.slug}`}
+                    className="article-link"
+                    prefetch
+                  >
+                    <span className="article-link-title">{article.title}</span>
+                    {releaseDate ? (
+                      <time
+                        className="article-release-date"
+                        dateTime={article.publishedAt ?? undefined}
+                      >
+                        {releaseDate}
+                      </time>
+                    ) : null}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ))}
+    </div>
   );
 }

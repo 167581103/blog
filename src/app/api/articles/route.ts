@@ -20,6 +20,7 @@ export async function POST(request: Request) {
     content?: string;
     status?: ArticleStatus;
     slug?: string;
+    categorySlug?: string | null;
   };
 
   if (!body.title?.trim()) {
@@ -32,6 +33,9 @@ export async function POST(request: Request) {
       content: body.content ?? "",
       status: body.status === "published" ? "published" : "draft",
       slug: body.slug,
+      ...(Object.prototype.hasOwnProperty.call(body, "categorySlug")
+        ? { categorySlug: body.categorySlug ?? null }
+        : {}),
     });
     return NextResponse.json(article, { status: 201 });
   } catch (error) {

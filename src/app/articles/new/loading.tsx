@@ -4,6 +4,7 @@ export default function NewArticleLoading() {
       <header className="editor-bar">
         <div className="editor-bar-start">
           <div className="skeleton skeleton-icon" />
+          <div className="skeleton skeleton-category" />
         </div>
         <div className="skeleton skeleton-title" />
         <div className="editor-bar-actions">

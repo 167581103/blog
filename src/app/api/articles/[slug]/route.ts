@@ -34,6 +34,7 @@ export async function PUT(request: Request, { params }: Params) {
     content?: string;
     status?: ArticleStatus;
     slug?: string;
+    categorySlug?: string | null;
   };
 
   if (!body.title?.trim()) {
@@ -46,6 +47,9 @@ export async function PUT(request: Request, { params }: Params) {
       content: body.content ?? "",
       status: body.status === "published" ? "published" : "draft",
       slug: body.slug,
+      ...(Object.prototype.hasOwnProperty.call(body, "categorySlug")
+        ? { categorySlug: body.categorySlug ?? null }
+        : {}),
     });
 
     if (!article) {

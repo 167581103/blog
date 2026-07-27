@@ -7,6 +7,12 @@ export {
   deleteArticle,
 } from "./articles";
 export {
+  listCategories,
+  createCategory,
+  renameCategory,
+  reorderCategories,
+} from "./categories";
+export {
   getResumeInfo,
   getResumeResponse,
   saveResume,
