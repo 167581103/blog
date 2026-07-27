@@ -9,8 +9,10 @@ export {
 } from "./articles";
 export {
   listCategories,
+  listCategoryLayout,
   createCategory,
   renameCategory,
+  setCategoryRows,
   reorderCategories,
 } from "./categories";
 export {
