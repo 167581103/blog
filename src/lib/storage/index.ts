@@ -4,6 +4,7 @@ export {
   getArticle,
   createArticle,
   updateArticle,
+  setArticleCategory,
   deleteArticle,
 } from "./articles";
 export {

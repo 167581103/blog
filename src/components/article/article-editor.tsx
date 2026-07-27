@@ -10,7 +10,12 @@ import {
   useTransition,
 } from "react";
 import { MarkdownEditorLazy } from "../editor/markdown-editor-lazy";
-import { CheckIcon, ChevronLeftIcon, SaveIcon } from "../chrome/icons";
+import {
+  CheckIcon,
+  ChevronLeftIcon,
+  SaveIcon,
+  TrashIcon,
+} from "../chrome/icons";
 import { CategoryPicker } from "./category-picker";
 import { EditorSaveMeta } from "./editor-save-meta";
 import { formatEditStamp } from "@/lib/format-time";
@@ -40,8 +45,6 @@ export function ArticleEditor({
   const [articleStatus, setArticleStatus] = useState<ArticleStatus>(
     article?.status ?? "draft",
   );
-  // Official placement — Release updates it; first create also stamps it so
-  // drafts from a column's + land under that column.
   const [categorySlug, setCategorySlug] = useState<string | null>(
     article?.categorySlug ?? initialCategorySlug,
   );
@@ -115,8 +118,9 @@ export function ArticleEditor({
         return;
       }
 
+      const releasing = intent === "release";
       const nextStatus: ArticleStatus =
-        intent === "release"
+        releasing
           ? "published"
           : statusRef.current === "published"
             ? "published"
@@ -132,10 +136,9 @@ export function ArticleEditor({
             title: nextTitle,
             content: nextContent,
             status: nextStatus,
+            release: releasing,
           };
-          // Stamp placement on first create (so column + drafts show up) and
-          // on Release. Later draft saves leave official placement alone.
-          if (!currentSlug || intent === "release") {
+          if (!currentSlug || releasing) {
             body.categorySlug = categorySlugRef.current;
           }
 
@@ -166,7 +169,7 @@ export function ArticleEditor({
           const saved = data as Article;
           setSlug(saved.slug);
           setArticleStatus(saved.status);
-          if (!currentSlug || intent === "release") {
+          if (!currentSlug || releasing) {
             setCategorySlug(saved.categorySlug ?? null);
           }
           setLastSavedAt(Date.parse(saved.updatedAt) || Date.now());
@@ -174,7 +177,7 @@ export function ArticleEditor({
           setDirty(false);
           dirtyRef.current = false;
 
-          if (intent === "release") {
+          if (releasing) {
             try {
               sessionStorage.setItem(
                 `optimistic-article:${saved.slug}`,
@@ -216,6 +219,34 @@ export function ArticleEditor({
     persist("release");
   }, [persist]);
 
+  const remove = useCallback(() => {
+    const currentSlug = slugRef.current;
+    if (!currentSlug) return;
+    if (
+      !window.confirm(
+        "Delete this article permanently? This cannot be undone.",
+      )
+    ) {
+      return;
+    }
+
+    setError(null);
+    startTransition(async () => {
+      const res = await fetch(`/api/articles/${currentSlug}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        setError(data?.error || "Failed to delete article");
+        return;
+      }
+      router.push("/");
+      router.refresh();
+    });
+  }, [router]);
+
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
@@ -227,7 +258,6 @@ export function ArticleEditor({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [saveExplicit]);
 
-  // Lightweight cloud autosave — only when dirty draft/published content settles.
   useEffect(() => {
     if (!dirty) return;
     const timer = window.setTimeout(() => {
@@ -279,6 +309,18 @@ export function ArticleEditor({
 
         <div className="editor-bar-actions">
           <EditorSaveMeta stamp={editStamp} />
+          {slug ? (
+            <button
+              type="button"
+              aria-label="Delete"
+              title="Delete"
+              disabled={busy}
+              onClick={remove}
+              className="icon-btn icon-btn-motion"
+            >
+              <TrashIcon className="h-5 w-5" />
+            </button>
+          ) : null}
           <button
             type="button"
             aria-label="Save"

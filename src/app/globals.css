@@ -115,24 +115,39 @@ textarea {
 
 .article-list {
   list-style: none;
-  margin: 3.5rem 0 0;
+  margin: 0;
   padding: 0;
   display: grid;
   gap: 0.25rem;
 }
 
+.article-sections-wrap {
+  margin: 3.5rem 0 0;
+  display: grid;
+  gap: 1.5rem;
+}
+
 .article-sections {
   margin: 3.5rem 0 0;
   display: grid;
+  grid-template-columns: 1fr;
   gap: 2rem;
+  align-items: start;
 }
 
-.article-sections .article-list {
+.article-sections-wrap .article-sections {
   margin: 0;
+}
+
+@media (min-width: 768px) {
+  .article-sections {
+    grid-template-columns: repeat(auto-fit, minmax(15.5rem, 1fr));
+  }
 }
 
 .article-section {
   position: relative;
+  min-width: 0;
   border-top: 2px solid transparent;
   transition:
     border-color 0.2s ease,
@@ -211,9 +226,9 @@ textarea {
 
 .article-link {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.85rem;
   padding: 0.9rem 0;
   border-bottom: 1px solid var(--line);
   transition: opacity 0.25s ease, transform 0.25s ease;
@@ -244,9 +259,22 @@ textarea {
 }
 
 .article-link-title {
+  flex: 1;
+  min-width: 0;
   font-size: 1.05rem;
   letter-spacing: -0.02em;
-  min-width: 0;
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.article-link-meta {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  max-width: 45%;
 }
 
 .article-release-date {
@@ -257,12 +285,16 @@ textarea {
   font-variant-numeric: tabular-nums;
 }
 
-.draft-tag {
+.draft-tag,
+.edited-tag {
   flex-shrink: 0;
   font-size: 0.75rem;
+  letter-spacing: 0.02em;
   color: var(--muted);
-  letter-spacing: 0.04em;
-  text-transform: lowercase;
+}
+
+.edited-tag {
+  color: var(--foreground);
 }
 
 .muted {
@@ -382,7 +414,7 @@ textarea {
   top: 0;
   z-index: 10;
   display: grid;
-  grid-template-columns: 2.5rem 1fr auto;
+  grid-template-columns: minmax(7rem, 1fr) minmax(0, 2.5fr) auto;
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 1rem;
@@ -390,6 +422,14 @@ textarea {
   backdrop-filter: blur(10px);
   border-bottom: 1px solid transparent;
   transition: border-color 0.3s ease;
+}
+
+.read-bar-start {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  justify-self: start;
+  min-width: 0;
 }
 
 .read-bar-actions {

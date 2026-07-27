@@ -21,6 +21,7 @@ export async function POST(request: Request) {
     status?: ArticleStatus;
     slug?: string;
     categorySlug?: string | null;
+    release?: boolean;
   };
 
   if (!body.title?.trim()) {
@@ -28,11 +29,13 @@ export async function POST(request: Request) {
   }
 
   try {
+    const releasing = Boolean(body.release);
     const article = await createArticle({
       title: body.title,
       content: body.content ?? "",
-      status: body.status === "published" ? "published" : "draft",
+      status: releasing || body.status === "published" ? "published" : "draft",
       slug: body.slug,
+      release: releasing,
       ...(Object.prototype.hasOwnProperty.call(body, "categorySlug")
         ? { categorySlug: body.categorySlug ?? null }
         : {}),
