@@ -226,6 +226,13 @@ textarea {
   margin-bottom: 0.35rem;
 }
 
+.article-section-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  flex: none;
+}
+
 .article-section-head.is-drag-handle {
   cursor: grab;
   user-select: none;
@@ -672,6 +679,70 @@ textarea {
   padding: 2.5rem 0 5rem;
 }
 
+.article-outline {
+  margin: 0 0 2rem;
+  padding: 0 0 1.25rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.article-outline-label {
+  margin: 0 0 0.55rem;
+  font-family: var(--font-display), sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.article-outline-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.article-outline-item {
+  position: relative;
+  margin: 0;
+  padding: 0.15rem 0 0.15rem 0.85rem;
+  font-family: var(--font-display), sans-serif;
+  font-size: 0.9rem;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+  color: var(--foreground);
+}
+
+.article-outline-item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.45rem;
+  bottom: 0.45rem;
+  width: 1px;
+  background: var(--line);
+}
+
+.article-outline-item.is-h2 {
+  padding-left: 1.35rem;
+}
+
+.article-outline-item.is-h3 {
+  padding-left: 1.85rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.article-outline-item a {
+  color: inherit;
+  text-decoration: none;
+  transition: opacity 0.2s ease;
+}
+
+.article-outline-item a:hover {
+  opacity: 0.55;
+}
+
 .editor-shell {
   min-height: 100vh;
   display: flex;
@@ -703,7 +774,14 @@ textarea {
 .category-picker {
   position: relative;
   min-width: 0;
-  max-width: 9.5rem;
+  max-width: 14rem;
+}
+
+.category-picker-field {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
 }
 
 .category-picker-input {
@@ -725,6 +803,7 @@ textarea {
 
 .category-picker:hover .category-picker-input,
 .category-picker.is-open .category-picker-input,
+.category-picker.is-switching .category-picker-input,
 .category-picker-input:focus {
   color: var(--foreground);
   border-bottom-color: var(--foreground);
@@ -739,7 +818,7 @@ textarea {
   top: calc(100% + 0.35rem);
   left: 0;
   z-index: 20;
-  min-width: max(100%, 8rem);
+  min-width: max(100%, 11rem);
   margin: 0;
   padding: 0.35rem 0;
   list-style: none;
@@ -758,9 +837,20 @@ textarea {
   height: 0.35rem;
 }
 
+.category-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding-right: 0.35rem;
+}
+
 .category-picker-option {
-  display: block;
-  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  flex: 1;
+  min-width: 0;
   margin: 0;
   padding: 0.4rem 0.7rem;
   border: 0;
@@ -771,6 +861,20 @@ textarea {
   letter-spacing: -0.01em;
   color: var(--foreground);
   cursor: pointer;
+}
+
+.category-picker-option-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-picker-option-count {
+  flex: none;
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .category-picker-option:hover,
@@ -786,6 +890,42 @@ textarea {
   font-size: 0.7rem;
   color: #b00020;
   white-space: nowrap;
+}
+
+.category-switch-confirm {
+  flex: none;
+}
+
+.delete-control.is-compact .delete-control-trigger-compact,
+.delete-control-trigger-compact {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.delete-control.is-compact .delete-control-trigger-compact:hover,
+.delete-control-trigger-compact:hover {
+  color: var(--foreground);
+  background: var(--soft);
+}
+
+.delete-control.is-compact .delete-control-confirm-btn {
+  width: 1.65rem;
+  height: 1.65rem;
+}
+
+.delete-control.is-compact .delete-control-confirm-btn {
+  margin-right: 0.1rem;
 }
 
 .editor-bar-actions {
@@ -962,6 +1102,28 @@ textarea {
   letter-spacing: -0.03em;
   line-height: 1.25;
   margin: 2rem 0 0.85rem;
+  font-weight: 600;
+}
+
+.prose-blog h1 {
+  font-size: 1.85rem;
+}
+
+.prose-blog h2 {
+  font-size: 1.45rem;
+}
+
+.prose-blog h3 {
+  font-size: 1.2rem;
+}
+
+.prose-blog h1 strong,
+.prose-blog h2 strong,
+.prose-blog h3 strong,
+.prose-blog h1 b,
+.prose-blog h2 b,
+.prose-blog h3 b {
+  font-weight: 800;
 }
 
 .prose-blog p,
@@ -1299,7 +1461,30 @@ a.file-attachment:hover {
 .md-editor h3 {
   font-family: var(--font-display), sans-serif;
   letter-spacing: -0.03em;
+  line-height: 1.25;
   margin: 1.5rem 0 0.75rem;
+  font-weight: 600;
+}
+
+.md-editor h1 {
+  font-size: 1.85rem;
+}
+
+.md-editor h2 {
+  font-size: 1.45rem;
+}
+
+.md-editor h3 {
+  font-size: 1.2rem;
+}
+
+.md-editor h1 strong,
+.md-editor h2 strong,
+.md-editor h3 strong,
+.md-editor h1 b,
+.md-editor h2 b,
+.md-editor h3 b {
+  font-weight: 800;
 }
 
 .md-editor .is-empty::before {

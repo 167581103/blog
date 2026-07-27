@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Markdown } from "../markdown";
+import { ArticleOutline } from "./article-outline";
 import { ReadTitle } from "./read-title";
 
 type Optimistic = { title: string; content: string; at: number };
@@ -105,5 +106,10 @@ export function OptimisticArticleBody({
   content: string;
 }) {
   const view = useOptimisticArticle(slug, title, content);
-  return <Markdown content={view.content} />;
+  return (
+    <>
+      <ArticleOutline content={view.content} linkable />
+      <Markdown content={view.content} />
+    </>
+  );
 }

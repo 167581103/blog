@@ -13,6 +13,7 @@ export {
   listCategoryLayout,
   createCategory,
   renameCategory,
+  deleteCategory,
   setCategoryRows,
   reorderCategories,
 } from "./categories";

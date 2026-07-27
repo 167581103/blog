@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import {
   flattenCategoryRows,
   normalizeCategoryRows,
+  removeSlugFromRows,
   soloRowsForCategories,
   type CategoryLayout,
 } from "../category-layout";
@@ -14,6 +15,7 @@ import {
   putJson,
   readJsonByPath,
 } from "./blob";
+import { listArticles } from "./articles";
 
 const INDEX_PATH = "categories/index.json";
 
@@ -170,6 +172,27 @@ export async function setCategoryRows(
     throw new Error("Category rows must include every column");
   }
   return writeDoc({ categories: layout.categories, rows: normalized });
+}
+
+/**
+ * Delete an empty column. Rejects when any live article still references it.
+ */
+export async function deleteCategory(slug: string): Promise<CategoryLayout> {
+  assertBlobConfigured();
+  const layout = await readDoc();
+  if (!layout.categories.some((c) => c.slug === slug)) {
+    throw new Error("Category not found");
+  }
+
+  const articles = await listArticles(true);
+  if (articles.some((a) => a.categorySlug === slug)) {
+    throw new Error("Category still has articles");
+  }
+
+  return writeDoc({
+    categories: layout.categories.filter((c) => c.slug !== slug),
+    rows: removeSlugFromRows(layout.rows, slug),
+  });
 }
 
 /**

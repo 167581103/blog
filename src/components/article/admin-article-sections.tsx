@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { PlusIcon } from "../chrome/icons";
+import { DeleteControl } from "../chrome/delete-control";
 import {
   isNoopCategoryDrop,
   placeCategory,
@@ -156,6 +157,34 @@ export function AdminArticleSections({ articles, layout }: Props) {
     setDropTarget(null);
   }
 
+  async function deleteEmptyCategory(slug: string) {
+    const previousRows = rows;
+    const previousCategories = categories;
+    setRows((current) =>
+      current
+        .map((row) => row.filter((s) => s !== slug))
+        .filter((row) => row.length > 0),
+    );
+    setCategories((current) => current.filter((c) => c.slug !== slug));
+    try {
+      const res = await fetch(`/api/categories/${slug}`, { method: "DELETE" });
+      if (!res.ok) {
+        setRows(previousRows);
+        setCategories(previousCategories);
+        return;
+      }
+      const data = (await res.json()) as CategoryLayout;
+      if (Array.isArray(data.rows)) setRows(data.rows);
+      if (Array.isArray(data.categories)) setCategories(data.categories);
+      startTransition(() => {
+        router.refresh();
+      });
+    } catch {
+      setRows(previousRows);
+      setCategories(previousCategories);
+    }
+  }
+
   let stagger = 0;
 
   return (
@@ -214,6 +243,7 @@ export function AdminArticleSections({ articles, layout }: Props) {
                       );
                     }}
                     onDrop={acceptDrop}
+                    onDeleteEmpty={deleteEmptyCategory}
                   />
                 ))}
               </div>
@@ -243,6 +273,7 @@ export function AdminArticleSections({ articles, layout }: Props) {
               onDragEnd={() => {}}
               onArmInline={() => {}}
               onDrop={() => {}}
+              onDeleteEmpty={() => {}}
             />
           </div>
         </div>
@@ -286,6 +317,7 @@ function CategorySection({
   onDragEnd,
   onArmInline,
   onDrop,
+  onDeleteEmpty,
 }: {
   group: ArticleGroup;
   stagger: number;
@@ -295,6 +327,7 @@ function CategorySection({
   onDragEnd: () => void;
   onArmInline: (el: HTMLElement, clientX: number) => void;
   onDrop: (event: React.DragEvent) => void;
+  onDeleteEmpty: (slug: string) => void;
 }) {
   const slug = group.categorySlug;
   const isDragging = Boolean(slug && draggingSlug === slug);
@@ -302,6 +335,7 @@ function CategorySection({
     draggingSlug && slug && draggingSlug !== slug && dropTarget?.anchor === slug
       ? dropTarget.mode
       : null;
+  const canDelete = Boolean(slug && group.items.length === 0);
 
   return (
     <section
@@ -347,23 +381,33 @@ function CategorySection({
         ) : (
           <h2 className="article-section-title is-muted">Loose</h2>
         )}
-        <Link
-          href={
-            slug
-              ? `/articles/new?category=${encodeURIComponent(slug)}`
-              : "/articles/new"
-          }
-          className="article-add-plus"
-          prefetch
-          aria-label={
-            group.title ? `Add article in ${group.title}` : "Add article"
-          }
-          title="Add article"
-          draggable={false}
-          onDragStart={(event) => event.preventDefault()}
-        >
-          <PlusIcon className="h-4 w-4" />
-        </Link>
+        <div className="article-section-head-actions">
+          {canDelete && slug ? (
+            <DeleteControl
+              compact
+              onConfirm={() => {
+                onDeleteEmpty(slug);
+              }}
+            />
+          ) : null}
+          <Link
+            href={
+              slug
+                ? `/articles/new?category=${encodeURIComponent(slug)}`
+                : "/articles/new"
+            }
+            className="article-add-plus"
+            prefetch
+            aria-label={
+              group.title ? `Add article in ${group.title}` : "Add article"
+            }
+            title="Add article"
+            draggable={false}
+            onDragStart={(event) => event.preventDefault()}
+          >
+            <PlusIcon className="h-4 w-4" />
+          </Link>
+        </div>
       </div>
 
       {group.items.length ? (
