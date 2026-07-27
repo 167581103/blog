@@ -94,34 +94,44 @@ async function writeIndex(articles: Article[], urls: Record<string, string>) {
   await putJson(INDEX_PATH, items);
 }
 
+/**
+ * Last-resort rebuild via Advanced `list()`. Avoid calling this while Blob
+ * Advanced quota is exhausted — prefer the CDN-backed index.json mirror.
+ */
 async function rebuildIndexFromBlobs(): Promise<Article[]> {
-  const auth = await blobAuth();
-  const { blobs } = await list({ prefix: ARTICLES_PREFIX, ...auth });
-  const articleBlobs = blobs.filter(
-    (b) =>
-      b.pathname.endsWith(".json") &&
-      b.pathname !== INDEX_PATH &&
-      !b.pathname.includes(".rev/"),
-  );
-  const articles = (
-    await Promise.all(
-      articleBlobs.map(async (b) => {
-        const data = await readJsonByPath<Article>(b.pathname);
-        return data
-          ? { article: normalizeArticle(data), url: b.url }
-          : null;
-      }),
-    )
-  ).filter((x): x is { article: Article; url: string } => Boolean(x));
-
-  const listArticles = articles.map((x) => x.article);
-  const urls = Object.fromEntries(articles.map((x) => [x.article.slug, x.url]));
   try {
-    await writeIndex(listArticles, urls);
+    const auth = await blobAuth();
+    const { blobs } = await list({ prefix: ARTICLES_PREFIX, ...auth });
+    const articleBlobs = blobs.filter(
+      (b) =>
+        b.pathname.endsWith(".json") &&
+        b.pathname !== INDEX_PATH &&
+        !b.pathname.includes(".rev/"),
+    );
+    const articles = (
+      await Promise.all(
+        articleBlobs.map(async (b) => {
+          const data = await readJsonByPath<Article>(b.pathname);
+          return data
+            ? { article: normalizeArticle(data), url: b.url }
+            : null;
+        }),
+      )
+    ).filter((x): x is { article: Article; url: string } => Boolean(x));
+
+    const rebuilt = articles.map((x) => x.article);
+    const urls = Object.fromEntries(
+      articles.map((x) => [x.article.slug, x.url]),
+    );
+    try {
+      await writeIndex(rebuilt, urls);
+    } catch {
+      // index write is best-effort (may fail if Advanced is frozen)
+    }
+    return rebuilt;
   } catch {
-    // index write is best-effort
+    return [];
   }
-  return listArticles;
 }
 
 async function listArticlesUncached(options?: {
@@ -133,7 +143,9 @@ async function listArticlesUncached(options?: {
     const index = await readIndex();
     let articles: Article[];
 
-    if (index?.length) {
+    // Use any successfully-read index (including empty). Only rebuild when
+    // the index object itself is missing — rebuild uses Advanced `list()`.
+    if (index !== null) {
       articles = index.map((item) => {
         const base: Article = {
           id: item.slug,
