@@ -2,6 +2,7 @@ import { cache } from "react";
 import { list } from "@vercel/blob";
 import { randomUUID } from "node:crypto";
 import type { Article, ArticleInput } from "../types";
+import { hasUnpublishedChanges } from "../types";
 import { slugify } from "../slug";
 import {
   assertBlobConfigured,
@@ -22,9 +23,13 @@ function articlePath(slug: string) {
 
 type ArticleIndexItem = {
   slug: string;
+  /** Working title (admin list). */
   title: string;
+  /** Live title for public list. */
+  publishedTitle: string | null;
   status: Article["status"];
   categorySlug: string | null;
+  hasUnpublishedChanges: boolean;
   updatedAt: string;
   publishedAt: string | null;
   url: string;
@@ -36,6 +41,17 @@ function normalizeCategorySlug(
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed || null;
+}
+
+function normalizeArticle(data: Article): Article {
+  return {
+    ...data,
+    categorySlug: normalizeCategorySlug(data.categorySlug),
+    publishedTitle:
+      typeof data.publishedTitle === "string" ? data.publishedTitle : null,
+    publishedContent:
+      typeof data.publishedContent === "string" ? data.publishedContent : null,
+  };
 }
 
 function sortIndex(items: ArticleIndexItem[]) {
@@ -50,18 +66,28 @@ async function readIndex(): Promise<ArticleIndexItem[] | null> {
   return readJsonByPath<ArticleIndexItem[]>(INDEX_PATH);
 }
 
+function toIndexItem(article: Article, url: string): ArticleIndexItem {
+  const normalized = normalizeArticle(article);
+  return {
+    slug: normalized.slug,
+    title: normalized.title,
+    publishedTitle:
+      normalized.status === "published"
+        ? (normalized.publishedTitle ?? normalized.title)
+        : null,
+    status: normalized.status,
+    categorySlug: normalizeCategorySlug(normalized.categorySlug),
+    hasUnpublishedChanges: hasUnpublishedChanges(normalized),
+    updatedAt: normalized.updatedAt,
+    publishedAt: normalized.publishedAt,
+    url,
+  };
+}
+
 async function writeIndex(articles: Article[], urls: Record<string, string>) {
   const items: ArticleIndexItem[] = sortIndex(
     articles
-      .map((a) => ({
-        slug: a.slug,
-        title: a.title,
-        status: a.status,
-        categorySlug: normalizeCategorySlug(a.categorySlug),
-        updatedAt: a.updatedAt,
-        publishedAt: a.publishedAt,
-        url: urls[a.slug] || "",
-      }))
+      .map((a) => toIndexItem(a, urls[a.slug] || ""))
       .filter((a) => a.url),
   );
   await putJson(INDEX_PATH, items);
@@ -81,13 +107,7 @@ async function rebuildIndexFromBlobs(): Promise<Article[]> {
       articleBlobs.map(async (b) => {
         const data = await readJsonByPath<Article>(b.pathname);
         return data
-          ? {
-              article: {
-                ...data,
-                categorySlug: normalizeCategorySlug(data.categorySlug),
-              },
-              url: b.url,
-            }
+          ? { article: normalizeArticle(data), url: b.url }
           : null;
       }),
     )
@@ -113,17 +133,32 @@ async function listArticlesUncached(options?: {
     let articles: Article[];
 
     if (index?.length) {
-      articles = index.map((item) => ({
-        id: item.slug,
-        slug: item.slug,
-        title: item.title,
-        content: "",
-        status: item.status,
-        categorySlug: normalizeCategorySlug(item.categorySlug),
-        createdAt: item.updatedAt,
-        updatedAt: item.updatedAt,
-        publishedAt: item.publishedAt,
-      }));
+      articles = index.map((item) => {
+        const base: Article = {
+          id: item.slug,
+          slug: item.slug,
+          title: item.title,
+          content: "",
+          status: item.status,
+          categorySlug: normalizeCategorySlug(item.categorySlug),
+          publishedTitle:
+            item.status === "published"
+              ? (item.publishedTitle ?? item.title)
+              : null,
+          // List rows don't load body; encode the edited flag so
+          // hasUnpublishedChanges() still works for admin badges.
+          publishedContent:
+            item.status === "published"
+              ? item.hasUnpublishedChanges
+                ? "__pending__"
+                : ""
+              : null,
+          createdAt: item.updatedAt,
+          updatedAt: item.updatedAt,
+          publishedAt: item.publishedAt,
+        };
+        return base;
+      });
     } else {
       articles = await rebuildIndexFromBlobs();
     }
@@ -154,10 +189,7 @@ async function getArticleUncached(slug: string): Promise<Article | null> {
   try {
     const data = await readJsonByPath<Article>(articlePath(slug));
     if (!data) return null;
-    return {
-      ...data,
-      categorySlug: normalizeCategorySlug(data.categorySlug),
-    };
+    return normalizeArticle(data);
   } catch {
     return null;
   }
@@ -195,15 +227,7 @@ function upsertIndexItems(
   const next = index.filter(
     (i) => i.slug !== article.slug && i.slug !== dropSlug,
   );
-  next.push({
-    slug: article.slug,
-    title: article.title,
-    status: article.status,
-    categorySlug: normalizeCategorySlug(article.categorySlug),
-    updatedAt: article.updatedAt,
-    publishedAt: article.publishedAt,
-    url,
-  });
+  next.push(toIndexItem(article, url));
   return sortIndex(next);
 }
 
@@ -213,20 +237,24 @@ export async function createArticle(input: ArticleInput): Promise<Article> {
   const baseSlug = slugify(input.slug?.trim() || input.title);
   const index = (await readIndex()) || [];
   const slug = await ensureUniqueSlug(baseSlug, undefined, index);
+  const releasing = Boolean(input.release) || input.status === "published";
+  const title = input.title.trim() || "Untitled";
 
   const article: Article = {
     id: randomUUID(),
     slug,
-    title: input.title.trim() || "Untitled",
+    title,
     content: input.content,
-    status: input.status,
+    status: releasing ? "published" : "draft",
     categorySlug:
       input.categorySlug !== undefined
         ? normalizeCategorySlug(input.categorySlug)
         : null,
+    publishedTitle: releasing ? title : null,
+    publishedContent: releasing ? input.content : null,
     createdAt: now,
     updatedAt: now,
-    publishedAt: input.status === "published" ? now : null,
+    publishedAt: releasing ? now : null,
   };
 
   const result = await putJson(articlePath(slug), article);
@@ -240,34 +268,65 @@ export async function updateArticle(
 ): Promise<Article | null> {
   assertBlobConfigured();
 
-  const [existing, index] = await Promise.all([
+  const [existingRaw, index] = await Promise.all([
     getArticleUncached(slug),
     readIndex(),
   ]);
-  if (!existing) return null;
+  if (!existingRaw) return null;
+  const existing = normalizeArticle(existingRaw);
 
   const now = new Date().toISOString();
-  const nextBase = slugify(input.slug?.trim() || input.title || existing.slug);
-  const slugUnchanged = nextBase === existing.slug;
-  const nextSlug = slugUnchanged
-    ? existing.slug
-    : await ensureUniqueSlug(nextBase, existing.slug, index);
+  const releasing = Boolean(input.release);
+  const nextTitle = input.title.trim() || existing.title;
+  const nextContent = input.content;
+
+  // Keep public URL stable while editing a published article’s draft.
+  const allowSlugChange =
+    releasing || existing.status !== "published" || !existing.publishedAt;
+  const nextBase = allowSlugChange
+    ? slugify(input.slug?.trim() || nextTitle || existing.slug)
+    : existing.slug;
+  const nextSlug =
+    nextBase === existing.slug
+      ? existing.slug
+      : await ensureUniqueSlug(nextBase, existing.slug, index);
+
+  let publishedTitle = existing.publishedTitle;
+  let publishedContent = existing.publishedContent;
+  let publishedAt = existing.publishedAt;
+  let status = input.status;
+
+  if (releasing) {
+    status = "published";
+    publishedTitle = nextTitle;
+    publishedContent = nextContent;
+    publishedAt = existing.publishedAt ?? now;
+  } else if (existing.status === "published" || status === "published") {
+    // Saving a published article: lock the live snapshot if missing (migrate).
+    status = "published";
+    publishedTitle = existing.publishedTitle ?? existing.title;
+    publishedContent = existing.publishedContent ?? existing.content;
+    publishedAt = existing.publishedAt ?? now;
+  } else {
+    status = "draft";
+    publishedTitle = null;
+    publishedContent = null;
+  }
 
   const article: Article = {
     ...existing,
     slug: nextSlug,
-    title: input.title.trim() || existing.title,
-    content: input.content,
-    status: input.status,
+    title: nextTitle,
+    content: nextContent,
+    status,
     categorySlug:
       input.categorySlug !== undefined
         ? normalizeCategorySlug(input.categorySlug)
         : normalizeCategorySlug(existing.categorySlug),
+    publishedTitle,
+    publishedContent,
     updatedAt: now,
-    publishedAt:
-      input.status === "published"
-        ? (existing.publishedAt ?? now)
-        : existing.publishedAt,
+    publishedAt,
   };
 
   const currentIndex = index || [];
@@ -288,6 +347,32 @@ export async function updateArticle(
   await putJson(
     INDEX_PATH,
     upsertIndexItems(currentIndex, article, result.url),
+  );
+  return article;
+}
+
+/** Move an article between columns without touching working/published body. */
+export async function setArticleCategory(
+  slug: string,
+  categorySlug: string | null,
+): Promise<Article | null> {
+  assertBlobConfigured();
+  const [existingRaw, index] = await Promise.all([
+    getArticleUncached(slug),
+    readIndex(),
+  ]);
+  if (!existingRaw) return null;
+  const existing = normalizeArticle(existingRaw);
+  const now = new Date().toISOString();
+  const article: Article = {
+    ...existing,
+    categorySlug: normalizeCategorySlug(categorySlug),
+    updatedAt: now,
+  };
+  const result = await putJson(articlePath(slug), article);
+  await putJson(
+    INDEX_PATH,
+    upsertIndexItems(index || [], article, result.url),
   );
   return article;
 }

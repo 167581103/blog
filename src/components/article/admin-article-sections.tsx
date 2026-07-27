@@ -5,7 +5,11 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { PlusIcon } from "../chrome/icons";
 import { formatReleaseDate } from "@/lib/format-time";
-import type { Article, Category } from "@/lib/types";
+import {
+  hasUnpublishedChanges,
+  type Article,
+  type Category,
+} from "@/lib/types";
 import { buildArticleGroups } from "./article-groups";
 
 type Props = {
@@ -14,8 +18,8 @@ type Props = {
 };
 
 /**
- * Admin homepage sections: drag columns to reorder (snap blocks),
- * dashed + to create under that column, drafts visible in each column.
+ * Admin homepage sections: drag columns to reorder,
+ * top CTA + per-column dashed +, drafts / edited markers.
  */
 export function AdminArticleSections({ articles, categories }: Props) {
   const router = useRouter();
@@ -65,137 +69,159 @@ export function AdminArticleSections({ articles, categories }: Props) {
   let stagger = 0;
 
   return (
-    <div className={`article-sections${pending ? " is-saving-order" : ""}`}>
-      {groups.map((group) => {
-        const isDragging = draggingSlug === group.categorySlug;
-        const isOver =
-          overSlug === group.categorySlug &&
-          draggingSlug &&
-          draggingSlug !== group.categorySlug;
+    <div className={`article-sections-wrap${pending ? " is-saving-order" : ""}`}>
+      <div
+        className="article-list-item"
+        style={{ ["--i" as string]: stagger++ }}
+      >
+        <Link href="/articles/new" className="article-add" prefetch>
+          add a new article
+        </Link>
+      </div>
 
-        return (
-          <section
-            key={group.key}
-            className={[
-              "article-section",
-              group.draggable ? "article-section-sortable" : "",
-              isDragging ? "is-dragging" : "",
-              isOver ? "is-drop-target" : "",
-            ]
-              .filter(Boolean)
-              .join(" ")}
-            onDragOver={(event) => {
-              if (!group.draggable || !draggingSlug) return;
-              event.preventDefault();
-              event.dataTransfer.dropEffect = "move";
-              setOverSlug(group.categorySlug);
-            }}
-            onDragLeave={() => {
-              if (overSlug === group.categorySlug) setOverSlug(null);
-            }}
-            onDrop={(event) => {
-              event.preventDefault();
-              const from =
-                event.dataTransfer.getData("text/plain") || draggingSlug;
-              setDraggingSlug(null);
-              setOverSlug(null);
-              if (!from || !group.categorySlug || from === group.categorySlug) {
-                return;
-              }
-              const next = moveBefore(from, group.categorySlug);
-              if (next !== order) void persistOrder(next);
-            }}
-          >
-            <div
+      <div className="article-sections">
+        {groups.map((group) => {
+          const isDragging = draggingSlug === group.categorySlug;
+          const isOver =
+            overSlug === group.categorySlug &&
+            draggingSlug &&
+            draggingSlug !== group.categorySlug;
+
+          return (
+            <section
+              key={group.key}
               className={[
-                "article-section-head",
-                "article-list-item",
-                group.draggable ? "is-drag-handle" : "",
+                "article-section",
+                group.draggable ? "article-section-sortable" : "",
+                isDragging ? "is-dragging" : "",
+                isOver ? "is-drop-target" : "",
               ]
                 .filter(Boolean)
                 .join(" ")}
-              style={{ ["--i" as string]: stagger++ }}
-              draggable={group.draggable}
-              onDragStart={(event) => {
-                if (!group.categorySlug) return;
-                setDraggingSlug(group.categorySlug);
-                event.dataTransfer.effectAllowed = "move";
-                event.dataTransfer.setData("text/plain", group.categorySlug);
+              onDragOver={(event) => {
+                if (!group.draggable || !draggingSlug) return;
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "move";
+                setOverSlug(group.categorySlug);
               }}
-              onDragEnd={() => {
+              onDragLeave={() => {
+                if (overSlug === group.categorySlug) setOverSlug(null);
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                const from =
+                  event.dataTransfer.getData("text/plain") || draggingSlug;
                 setDraggingSlug(null);
                 setOverSlug(null);
+                if (
+                  !from ||
+                  !group.categorySlug ||
+                  from === group.categorySlug
+                ) {
+                  return;
+                }
+                const next = moveBefore(from, group.categorySlug);
+                if (next !== order) void persistOrder(next);
               }}
             >
-              {group.title ? (
-                <h2 className="article-section-title">{group.title}</h2>
-              ) : (
-                <h2 className="article-section-title is-muted">Loose</h2>
-              )}
-              <Link
-                href={
-                  group.categorySlug
-                    ? `/articles/new?category=${encodeURIComponent(group.categorySlug)}`
-                    : "/articles/new"
-                }
-                className="article-add-plus"
-                prefetch
-                aria-label={
-                  group.title
-                    ? `Add article in ${group.title}`
-                    : "Add article"
-                }
-                title="Add article"
-                draggable={false}
-                onDragStart={(event) => event.preventDefault()}
+              <div
+                className={[
+                  "article-section-head",
+                  "article-list-item",
+                  group.draggable ? "is-drag-handle" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                style={{ ["--i" as string]: stagger++ }}
+                draggable={group.draggable}
+                onDragStart={(event) => {
+                  if (!group.categorySlug) return;
+                  setDraggingSlug(group.categorySlug);
+                  event.dataTransfer.effectAllowed = "move";
+                  event.dataTransfer.setData("text/plain", group.categorySlug);
+                }}
+                onDragEnd={() => {
+                  setDraggingSlug(null);
+                  setOverSlug(null);
+                }}
               >
-                <PlusIcon className="h-4 w-4" />
-              </Link>
-            </div>
+                {group.title ? (
+                  <h2 className="article-section-title">{group.title}</h2>
+                ) : (
+                  <h2 className="article-section-title is-muted">Loose</h2>
+                )}
+                <Link
+                  href={
+                    group.categorySlug
+                      ? `/articles/new?category=${encodeURIComponent(group.categorySlug)}`
+                      : "/articles/new"
+                  }
+                  className="article-add-plus"
+                  prefetch
+                  aria-label={
+                    group.title
+                      ? `Add article in ${group.title}`
+                      : "Add article"
+                  }
+                  title="Add article"
+                  draggable={false}
+                  onDragStart={(event) => event.preventDefault()}
+                >
+                  <PlusIcon className="h-4 w-4" />
+                </Link>
+              </div>
 
-            {group.items.length ? (
-              <ul className="article-list">
-                {group.items.map((article) => {
-                  const releaseDate =
-                    article.status === "published"
-                      ? formatReleaseDate(article.publishedAt)
-                      : null;
-                  const i = stagger++;
-                  return (
-                    <li
-                      key={article.id}
-                      className="article-list-item"
-                      style={{ ["--i" as string]: i }}
-                    >
-                      <Link
-                        href={`/articles/${article.slug}`}
-                        className="article-link"
-                        prefetch
-                        draggable={false}
-                        onDragStart={(event) => event.preventDefault()}
+              {group.items.length ? (
+                <ul className="article-list">
+                  {group.items.map((article) => {
+                    const edited = hasUnpublishedChanges(article);
+                    const releaseDate =
+                      article.status === "published"
+                        ? formatReleaseDate(article.publishedAt)
+                        : null;
+                    const i = stagger++;
+                    return (
+                      <li
+                        key={article.id}
+                        className="article-list-item"
+                        style={{ ["--i" as string]: i }}
                       >
-                        <span className="article-link-title">
-                          {article.title}
-                        </span>
-                        {article.status === "draft" ? (
-                          <span className="draft-tag">draft</span>
-                        ) : releaseDate ? (
-                          <time
-                            className="article-release-date"
-                            dateTime={article.publishedAt ?? undefined}
-                          >
-                            {releaseDate}
-                          </time>
-                        ) : null}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : null}
-          </section>
-        );
-      })}
+                        <Link
+                          href={`/articles/${article.slug}`}
+                          className="article-link"
+                          prefetch
+                          draggable={false}
+                          onDragStart={(event) => event.preventDefault()}
+                        >
+                          <span className="article-link-title">
+                            {article.title}
+                          </span>
+                          <span className="article-link-meta">
+                            {article.status === "draft" ? (
+                              <span className="draft-tag">draft</span>
+                            ) : null}
+                            {edited ? (
+                              <span className="edited-tag">edited</span>
+                            ) : null}
+                            {releaseDate ? (
+                              <time
+                                className="article-release-date"
+                                dateTime={article.publishedAt ?? undefined}
+                              >
+                                {releaseDate}
+                              </time>
+                            ) : null}
+                          </span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+            </section>
+          );
+        })}
+      </div>
     </div>
   );
 }

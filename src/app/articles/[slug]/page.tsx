@@ -8,10 +8,12 @@ import {
   OptimisticArticleBody,
   OptimisticReadTitle,
 } from "@/components/article/optimistic-article";
+import { ReadCategoryControl } from "@/components/article/read-category-control";
 import { ChevronLeftIcon } from "@/components/chrome/icons";
 import { auth } from "@/lib/auth";
 import { listComments } from "@/lib/db/comments";
-import { getArticle } from "@/lib/storage";
+import { getArticle, listCategories } from "@/lib/storage";
+import { publicContent, publicTitle } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -27,12 +29,16 @@ export async function generateMetadata({ params }: Props) {
     if (!session?.user?.isAdmin) return { title: "Article" };
   }
 
-  return { title: article.title };
+  return { title: publicTitle(article) };
 }
 
 export default async function ArticlePage({ params }: Props) {
   const { slug } = await params;
-  const [article, session] = await Promise.all([getArticle(slug), auth()]);
+  const [article, session, categories] = await Promise.all([
+    getArticle(slug),
+    auth(),
+    listCategories(),
+  ]);
   if (!article) notFound();
 
   const isAdmin = Boolean(session?.user?.isAdmin);
@@ -62,16 +68,28 @@ export default async function ArticlePage({ params }: Props) {
         }
       : null;
 
+  const liveTitle = publicTitle(article);
+  const liveContent = publicContent(article);
+
   return (
     <div className="read-shell">
       <header className="read-bar">
-        <IconLink href="/" label="Back" prefetch>
-          <ChevronLeftIcon className="h-5 w-5" />
-        </IconLink>
+        <div className="read-bar-start">
+          <IconLink href="/" label="Back" prefetch>
+            <ChevronLeftIcon className="h-5 w-5" />
+          </IconLink>
+          {isAdmin ? (
+            <ReadCategoryControl
+              articleSlug={article.slug}
+              categories={categories}
+              categorySlug={article.categorySlug}
+            />
+          ) : null}
+        </div>
         <OptimisticReadTitle
           slug={article.slug}
-          title={article.title}
-          content={article.content}
+          title={liveTitle}
+          content={liveContent}
           editHref={isAdmin ? `/articles/${article.slug}/edit` : undefined}
         />
         <div className="read-bar-actions">
@@ -84,8 +102,8 @@ export default async function ArticlePage({ params }: Props) {
         <PageFade>
           <OptimisticArticleBody
             slug={article.slug}
-            title={article.title}
-            content={article.content}
+            title={liveTitle}
+            content={liveContent}
           />
           {article.status === "published" ? (
             <ArticleComments
