@@ -24,13 +24,15 @@ export default async function HomePage() {
     : all.filter((a) => a.status === "published");
 
   return (
-    <main className="site-shell">
+    <main className="home-shell">
       <PageFade>
-        <OptimisticHome
-          title={home.title}
-          content={home.content}
-          editHref={isAdmin ? "/home/edit" : undefined}
-        />
+        <div className="home-intro">
+          <OptimisticHome
+            title={home.title}
+            content={home.content}
+            editHref={isAdmin ? "/home/edit" : undefined}
+          />
+        </div>
         {isAdmin ? (
           <AdminArticleSections articles={articles} layout={layout} />
         ) : (
