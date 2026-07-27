@@ -22,7 +22,7 @@ type Props = {
 
 const AUTOSAVE_MS = 2500;
 
-export function ArticleEditor({ mode, article, backHref = "/" }: Props) {
+export function ArticleEditor({ article, backHref = "/" }: Props) {
   const router = useRouter();
   const [title, setTitle] = useState(article?.title ?? "");
   const [content, setContent] = useState(article?.content ?? "");
