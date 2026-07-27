@@ -883,36 +883,46 @@ a.file-attachment:hover {
 }
 
 .md-editor-wrap {
-  display: grid;
-  gap: 0.65rem;
+  position: relative;
 }
 
-.md-link-hint {
+.md-link-bubble {
   display: flex;
-  align-items: baseline;
-  gap: 0.55rem;
-  margin: 0;
-  padding: 0.45rem 0.65rem;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.4rem 0.35rem 0.55rem;
   border: 1px solid var(--line);
-  background: var(--soft);
+  background: var(--background);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
   font-family: var(--font-display), sans-serif;
-  font-size: 0.8rem;
-  line-height: 1.4;
-  color: var(--muted);
 }
 
-.md-link-hint-label {
-  flex: none;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+.md-link-bubble-input {
+  width: min(18rem, 55vw);
+  margin: 0;
+  border: none;
+  background: transparent;
+  outline: none;
+  font: inherit;
+  font-size: 0.85rem;
+  line-height: 1.4;
   color: var(--foreground);
 }
 
-.md-link-hint-url {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.md-link-bubble-unlink {
+  flex: none;
+  margin: 0;
+  padding: 0.25rem 0.45rem;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.md-link-bubble-unlink:hover {
   color: var(--foreground);
 }
 

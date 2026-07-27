@@ -12,10 +12,27 @@ import { Markdown } from "tiptap-markdown";
 import { BlogImage } from "./blog-image";
 import { ImageCompare } from "./image-compare";
 import { FileAttachment } from "./file-attachment";
-import { LinkUrlHint } from "./link-url-hint";
+import { LinkBubbleMenu } from "./link-bubble-menu";
 
-/** Underlined link mark that exposes the real href as title + data attribute. */
+/** Link mark with Mod-k → TipTap BubbleMenu (create/edit), click selects the link. */
 const EditorLink = Link.extend({
+  addKeyboardShortcuts() {
+    return {
+      "Mod-k": () => {
+        if (this.editor.isActive("link")) {
+          return this.editor.commands.extendMarkRange("link");
+        }
+        const { empty } = this.editor.state.selection;
+        if (empty) return false;
+        return this.editor
+          .chain()
+          .focus()
+          .extendMarkRange("link")
+          .setLink({ href: "https://" })
+          .run();
+      },
+    };
+  },
   renderHTML({ HTMLAttributes }) {
     const href =
       typeof HTMLAttributes.href === "string" ? HTMLAttributes.href : "";
@@ -23,8 +40,7 @@ const EditorLink = Link.extend({
       "a",
       mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
         class: "md-link",
-        title: href ? `Link → ${href}` : "Link",
-        "data-href": href,
+        title: href || undefined,
       }),
       0,
     ];
@@ -321,9 +337,11 @@ export function MarkdownEditor({
       FileAttachment,
       EditorLink.configure({
         openOnClick: false,
+        enableClickSelection: true,
         autolink: true,
         linkOnPaste: true,
         markdownLinks: true,
+        defaultProtocol: "https",
       }),
       Placeholder.configure({
         placeholder: placeholder ?? "Write in markdown…",
@@ -390,8 +408,8 @@ export function MarkdownEditor({
 
   return (
     <div className="md-editor-wrap">
-      <LinkUrlHint editor={editor} />
       <EditorContent editor={editor} />
+      <LinkBubbleMenu editor={editor} />
     </div>
   );
 }
