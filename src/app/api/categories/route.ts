@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import {
   createCategory,
-  listCategories,
-  reorderCategories,
+  listCategoryLayout,
+  setCategoryRows,
 } from "@/lib/storage";
 
 export async function GET() {
@@ -11,8 +11,8 @@ export async function GET() {
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const categories = await listCategories();
-  return NextResponse.json(categories);
+  const layout = await listCategoryLayout();
+  return NextResponse.json(layout);
 }
 
 export async function POST(request: Request) {
@@ -36,24 +36,40 @@ export async function POST(request: Request) {
   }
 }
 
-/** Body: `{ slugs: string[] }` — full permutation of category slugs. */
+/**
+ * Body: `{ rows: string[][] }` — homepage rows (1–3 slugs each), covering
+ * every category. Legacy `{ slugs: string[] }` becomes solo rows.
+ */
 export async function PUT(request: Request) {
   const session = await requireAdmin();
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = (await request.json()) as { slugs?: string[] };
-  if (!Array.isArray(body.slugs) || body.slugs.some((s) => typeof s !== "string")) {
-    return NextResponse.json({ error: "slugs array is required" }, { status: 400 });
-  }
+  const body = (await request.json()) as {
+    rows?: string[][];
+    slugs?: string[];
+  };
 
   try {
-    const categories = await reorderCategories(body.slugs);
-    return NextResponse.json(categories);
+    if (Array.isArray(body.rows)) {
+      const layout = await setCategoryRows(body.rows);
+      return NextResponse.json(layout);
+    }
+    if (
+      Array.isArray(body.slugs) &&
+      body.slugs.every((s) => typeof s === "string")
+    ) {
+      const layout = await setCategoryRows(body.slugs.map((slug) => [slug]));
+      return NextResponse.json(layout);
+    }
+    return NextResponse.json(
+      { error: "rows (string[][]) is required" },
+      { status: 400 },
+    );
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Failed to reorder categories";
+      error instanceof Error ? error.message : "Failed to update layout";
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

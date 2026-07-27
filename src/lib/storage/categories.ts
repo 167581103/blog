@@ -1,5 +1,11 @@
 import { cache } from "react";
 import { randomUUID } from "node:crypto";
+import {
+  flattenCategoryRows,
+  normalizeCategoryRows,
+  soloRowsForCategories,
+  type CategoryLayout,
+} from "../category-layout";
 import type { Category } from "../types";
 import { slugify } from "../slug";
 import {
@@ -11,23 +17,80 @@ import {
 
 const INDEX_PATH = "categories/index.json";
 
-async function readIndex(): Promise<Category[]> {
-  if (!isBlobConfigured()) return [];
+type CategoriesDoc = {
+  categories: Category[];
+  rows: string[][];
+};
+
+type StoredCategories = Category[] | CategoriesDoc;
+
+function isDoc(value: StoredCategories): value is CategoriesDoc {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      Array.isArray((value as CategoriesDoc).categories),
+  );
+}
+
+function toLayout(raw: StoredCategories | null): CategoryLayout {
+  if (!raw) return { categories: [], rows: [] };
+
+  if (Array.isArray(raw)) {
+    const categories = raw.filter(Boolean);
+    return {
+      categories,
+      rows: soloRowsForCategories(categories),
+    };
+  }
+
+  if (!isDoc(raw)) return { categories: [], rows: [] };
+
+  const categories = Array.isArray(raw.categories) ? raw.categories : [];
+  const slugs = categories.map((c) => c.slug);
+  const rows = normalizeCategoryRows(
+    Array.isArray(raw.rows) ? raw.rows : soloRowsForCategories(categories),
+    slugs,
+  );
+  // Keep category array in row-major order for pickers / defaults.
+  const bySlug = new Map(categories.map((c) => [c.slug, c]));
+  const ordered = flattenCategoryRows(rows)
+    .map((slug) => bySlug.get(slug))
+    .filter((c): c is Category => Boolean(c));
+  return { categories: ordered, rows };
+}
+
+async function readDoc(): Promise<CategoryLayout> {
+  if (!isBlobConfigured()) return { categories: [], rows: [] };
   try {
-    const items = await readJsonByPath<Category[]>(INDEX_PATH);
-    return Array.isArray(items) ? items : [];
+    const raw = await readJsonByPath<StoredCategories>(INDEX_PATH);
+    return toLayout(raw);
   } catch {
-    return [];
+    return { categories: [], rows: [] };
   }
 }
 
-async function writeIndex(categories: Category[]) {
+async function writeDoc(layout: CategoryLayout) {
   assertBlobConfigured();
-  await putJson(INDEX_PATH, categories);
+  const slugs = layout.categories.map((c) => c.slug);
+  const rows = normalizeCategoryRows(layout.rows, slugs);
+  const bySlug = new Map(layout.categories.map((c) => [c.slug, c]));
+  const categories = flattenCategoryRows(rows)
+    .map((slug) => bySlug.get(slug))
+    .filter((c): c is Category => Boolean(c));
+  const doc: CategoriesDoc = { categories, rows };
+  await putJson(INDEX_PATH, doc);
+  return { categories, rows };
 }
 
+export const listCategoryLayout = cache(
+  async (): Promise<CategoryLayout> => readDoc(),
+);
+
+/** Categories in homepage row-major order (picker matches homepage). */
 export const listCategories = cache(async (): Promise<Category[]> => {
-  return readIndex();
+  const layout = await readDoc();
+  return layout.categories;
 });
 
 export async function createCategory(name: string): Promise<Category> {
@@ -35,8 +98,8 @@ export async function createCategory(name: string): Promise<Category> {
   const trimmed = name.trim();
   if (!trimmed) throw new Error("Category name is required");
 
-  const categories = await readIndex();
-  const existing = categories.find(
+  const layout = await readDoc();
+  const existing = layout.categories.find(
     (c) => c.name.toLowerCase() === trimmed.toLowerCase(),
   );
   if (existing) return existing;
@@ -45,7 +108,7 @@ export async function createCategory(name: string): Promise<Category> {
   const base = slugify(trimmed);
   let slug = base;
   let i = 2;
-  const taken = new Set(categories.map((c) => c.slug));
+  const taken = new Set(layout.categories.map((c) => c.slug));
   while (taken.has(slug)) {
     slug = `${base}-${i}`;
     i += 1;
@@ -58,7 +121,11 @@ export async function createCategory(name: string): Promise<Category> {
     createdAt: now,
     updatedAt: now,
   };
-  await writeIndex([...categories, category]);
+  // New columns start as their own full-width row.
+  await writeDoc({
+    categories: [...layout.categories, category],
+    rows: [...layout.rows, [slug]],
+  });
   return category;
 }
 
@@ -70,11 +137,11 @@ export async function renameCategory(
   const trimmed = name.trim();
   if (!trimmed) throw new Error("Category name is required");
 
-  const categories = await readIndex();
-  const index = categories.findIndex((c) => c.slug === slug);
+  const layout = await readDoc();
+  const index = layout.categories.findIndex((c) => c.slug === slug);
   if (index < 0) return null;
 
-  const conflict = categories.find(
+  const conflict = layout.categories.find(
     (c) =>
       c.slug !== slug && c.name.toLowerCase() === trimmed.toLowerCase(),
   );
@@ -83,32 +150,33 @@ export async function renameCategory(
   }
 
   const now = new Date().toISOString();
-  const next = categories.map((c, i) =>
+  const categories = layout.categories.map((c, i) =>
     i === index ? { ...c, name: trimmed, updatedAt: now } : c,
   );
-  await writeIndex(next);
-  return next[index]!;
+  const next = await writeDoc({ categories, rows: layout.rows });
+  return next.categories.find((c) => c.slug === slug) ?? null;
 }
 
-/** Persist homepage / picker order. `slugs` must be a permutation of existing categories. */
-export async function reorderCategories(slugs: string[]): Promise<Category[]> {
+/** Persist homepage row layout. `rows` must cover every category slug. */
+export async function setCategoryRows(
+  rows: string[][],
+): Promise<CategoryLayout> {
   assertBlobConfigured();
-  const categories = await readIndex();
-  if (slugs.length !== categories.length) {
-    throw new Error("Category order must include every column");
+  const layout = await readDoc();
+  const slugs = layout.categories.map((c) => c.slug);
+  const normalized = normalizeCategoryRows(rows, slugs);
+  const flat = flattenCategoryRows(normalized);
+  if (flat.length !== slugs.length) {
+    throw new Error("Category rows must include every column");
   }
+  return writeDoc({ categories: layout.categories, rows: normalized });
+}
 
-  const bySlug = new Map(categories.map((c) => [c.slug, c]));
-  const next: Category[] = [];
-  for (const slug of slugs) {
-    const category = bySlug.get(slug);
-    if (!category) throw new Error(`Unknown category: ${slug}`);
-    if (next.some((c) => c.slug === slug)) {
-      throw new Error("Duplicate category in order");
-    }
-    next.push(category);
-  }
-
-  await writeIndex(next);
-  return next;
+/**
+ * @deprecated Prefer setCategoryRows. Flat slug order becomes solo rows
+ * (one column per row) to preserve stacked layout when migrating callers.
+ */
+export async function reorderCategories(slugs: string[]): Promise<Category[]> {
+  const layout = await setCategoryRows(slugs.map((slug) => [slug]));
+  return layout.categories;
 }

@@ -10,8 +10,10 @@ export {
 export { purgeExpiredTrash, listTrashedArticles } from "./trash";
 export {
   listCategories,
+  listCategoryLayout,
   createCategory,
   renameCategory,
+  setCategoryRows,
   reorderCategories,
 } from "./categories";
 export {

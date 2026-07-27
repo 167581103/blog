@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { CheckIcon, XIcon } from "../chrome/icons";
+import { useEffect, useId, useRef, useState } from "react";
+import { CheckIcon, TrashIcon, XIcon } from "./icons";
 
 type Props = {
   disabled?: boolean;
@@ -10,53 +10,88 @@ type Props = {
 };
 
 /**
- * Lightweight delete confirm: X stays in place; hover reveals a ✓
- * that must be explicitly targeted to confirm.
+ * Trash → click → becomes X while a confirm strip extends with ✓.
+ * Only an explicit click dismisses (outside / X / confirm). Mouse leave does not.
  */
 export function DeleteControl({ disabled, busy, onConfirm }: Props) {
-  const [open, setOpen] = useState(false);
+  const [armed, setArmed] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const confirmId = useId();
+
+  useEffect(() => {
+    if (!armed) return;
+
+    function onPointerDown(event: PointerEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setArmed(false);
+      }
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setArmed(false);
+    }
+
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [armed]);
+
+  useEffect(() => {
+    if (disabled || busy) setArmed(false);
+  }, [disabled, busy]);
 
   return (
     <div
-      className={`delete-control${open ? " is-open" : ""}`}
-      onMouseEnter={() => {
-        if (!disabled && !busy) setOpen(true);
-      }}
-      onMouseLeave={() => setOpen(false)}
+      ref={rootRef}
+      className={`delete-control${armed ? " is-armed" : ""}`}
     >
       <button
         type="button"
-        className="icon-btn icon-btn-motion"
-        aria-label="Delete"
-        title="Delete"
-        aria-haspopup="true"
-        aria-expanded={open}
+        className="icon-btn icon-btn-motion delete-control-trigger"
+        aria-label={armed ? "Cancel delete" : "Delete"}
+        title={armed ? "Cancel delete" : "Delete"}
+        aria-expanded={armed}
+        aria-controls={confirmId}
         disabled={disabled || busy}
         onClick={() => {
-          if (!disabled && !busy) setOpen(true);
+          if (disabled || busy) return;
+          setArmed((value) => !value);
         }}
       >
-        <XIcon className="h-5 w-5" />
+        {armed ? (
+          <XIcon className="h-5 w-5" />
+        ) : (
+          <TrashIcon className="h-5 w-5" />
+        )}
       </button>
 
-      {open ? (
-        <div className="delete-confirm" role="menu">
+      <div
+        id={confirmId}
+        className="delete-control-extend"
+        role="group"
+        aria-label="Confirm delete"
+        aria-hidden={!armed}
+      >
+        <div className="delete-control-extend-inner">
           <button
             type="button"
-            className="delete-confirm-check icon-btn"
-            role="menuitem"
+            className="delete-control-confirm-btn"
             aria-label="Confirm delete"
             title="Confirm delete"
-            disabled={busy}
+            tabIndex={armed ? 0 : -1}
+            disabled={busy || !armed}
             onClick={() => {
-              setOpen(false);
+              setArmed(false);
               onConfirm();
             }}
           >
             <CheckIcon className="h-5 w-5" />
           </button>
         </div>
-      ) : null}
+      </div>
     </div>
   );
 }
