@@ -232,20 +232,10 @@ function CategorySection({
 }) {
   const slug = group.categorySlug;
   const isDragging = Boolean(slug && draggingSlug === slug);
-  const isForeignDrag = Boolean(
-    draggingSlug && slug && draggingSlug !== slug,
-  );
-
-  const edge =
-    isForeignDrag && dropTarget && dropTarget.mode !== "solo-before"
-      ? dropTarget.anchor === slug
-        ? dropTarget.mode
-        : null
-      : isForeignDrag &&
-          dropTarget?.mode === "solo-before" &&
-          dropTarget.anchor === slug
-        ? "solo-before"
-        : null;
+  const active =
+    draggingSlug && slug && draggingSlug !== slug && dropTarget?.anchor === slug
+      ? dropTarget.mode
+      : null;
 
   return (
     <section
@@ -253,9 +243,9 @@ function CategorySection({
         "article-section",
         group.draggable ? "article-section-sortable" : "",
         isDragging ? "is-dragging" : "",
-        edge === "solo-before" ? "is-drop-solo" : "",
-        edge === "inline-before" ? "is-drop-before" : "",
-        edge === "inline-after" ? "is-drop-after" : "",
+        active === "solo-before" ? "is-drop-solo" : "",
+        active === "inline-before" ? "is-drop-before" : "",
+        active === "inline-after" ? "is-drop-after" : "",
       ]
         .filter(Boolean)
         .join(" ")}
