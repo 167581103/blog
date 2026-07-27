@@ -19,7 +19,7 @@ export function ChevronLeftIcon({ className }: IconProps) {
   );
 }
 
-export function ShareIcon({ className }: IconProps) {
+export function LinkIcon({ className }: IconProps) {
   return (
     <svg
       className={className}
@@ -31,9 +31,8 @@ export function ShareIcon({ className }: IconProps) {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <path d="M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7" />
-      <path d="M12 3v12" />
-      <path d="M8 7l4-4 4 4" />
+      <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
+      <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
     </svg>
   );
 }
