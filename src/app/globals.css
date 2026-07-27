@@ -8,6 +8,17 @@
   --soft: #f7f7f7;
   --font-display: var(--font-sora);
   --font-body: var(--font-source-serif);
+  /* Prose / brand reading measure — keep line length comfortable. */
+  --measure-read: 40rem;
+  /* Homepage column board — room for 2–3 columns without squeezing. */
+  --measure-board: 64rem;
+  --page-inline: 2.5rem;
+}
+
+@media (min-width: 1200px) {
+  :root {
+    --measure-board: 72rem;
+  }
 }
 
 @theme inline {
@@ -50,9 +61,20 @@ textarea {
 }
 
 .site-shell {
-  width: min(720px, calc(100% - 2.5rem));
+  width: min(720px, calc(100% - var(--page-inline)));
   margin: 0 auto;
   padding: 4.5rem 0 6rem;
+}
+
+/* Homepage: wider board for columns; intro stays on the reading measure. */
+.home-shell {
+  width: min(var(--measure-board), calc(100% - var(--page-inline)));
+  margin: 0 auto;
+  padding: 4.5rem 0 6rem;
+}
+
+.home-intro {
+  width: min(var(--measure-read), 100%);
 }
 
 .brand {
@@ -645,7 +667,7 @@ textarea {
 }
 
 .read-body {
-  width: min(720px, calc(100% - 2.5rem));
+  width: min(var(--measure-read), calc(100% - var(--page-inline)));
   margin: 0 auto;
   padding: 2.5rem 0 5rem;
 }
@@ -817,7 +839,7 @@ textarea {
 }
 
 .editor-body {
-  width: min(720px, calc(100% - 2.5rem));
+  width: min(var(--measure-read), calc(100% - var(--page-inline)));
   margin: 0 auto;
   padding: 1.5rem 0 5rem;
   flex: 1;
@@ -1418,12 +1440,14 @@ a.file-attachment:hover {
 
 @media (max-width: 640px) {
   .site-shell,
+  .home-shell,
   .read-body,
   .editor-body {
     width: min(100%, calc(100% - 1.5rem));
   }
 
-  .site-shell {
+  .site-shell,
+  .home-shell {
     padding-top: 3rem;
   }
 }
