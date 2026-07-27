@@ -135,7 +135,11 @@ async function fetchPublicJson<T>(
       // Short Next data-cache so homepage spam doesn't re-hit CDN every time.
       next: { revalidate: ARTICLE_CACHE_MAX_AGE },
     });
-    if (!res.ok) return { data: null, status: res.status };
+    if (!res.ok) {
+      // The body explains platform-level blocks (quota, suspension).
+      const reason = await res.text().catch(() => "");
+      return { data: null, status: `${res.status} ${reason.slice(0, 200)}` };
+    }
     return { data: (await res.json()) as T, status: res.status };
   } catch (error) {
     return { data: null, status: describeError(error) };
