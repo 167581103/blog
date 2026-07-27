@@ -137,6 +137,25 @@ textarea {
   margin: 0;
 }
 
+/* Admin: row gaps are real drop targets (CSS gap voids cannot receive drops). */
+.article-rows-admin {
+  gap: 0;
+}
+
+.article-row-block {
+  display: grid;
+}
+
+.article-row-gap {
+  height: 2rem;
+  border-top: 2px solid transparent;
+  transition: border-color 0.15s ease;
+}
+
+.article-row-gap.is-active {
+  border-top-color: var(--foreground);
+}
+
 .article-row {
   display: grid;
   grid-template-columns: 1fr;
@@ -150,36 +169,19 @@ textarea {
   }
 }
 
-/* Trailing pad: keeps end-of-list solo drops hittable without gray chrome. */
-.article-row-end {
-  height: 1.5rem;
-  border-top: 2px solid transparent;
-  transition: border-color 0.15s ease;
-}
-
-.article-row-end.is-active {
-  border-top-color: var(--foreground);
-}
-
 .article-section {
   position: relative;
   min-width: 0;
-  border-top: 2px solid transparent;
   box-shadow:
     inset 2px 0 0 transparent,
     inset -2px 0 0 transparent;
   transition:
-    border-color 0.15s ease,
     box-shadow 0.15s ease,
     opacity 0.2s ease;
 }
 
 .article-section.is-dragging {
   opacity: 0.45;
-}
-
-.article-section.is-drop-solo {
-  border-top-color: var(--foreground);
 }
 
 .article-section.is-drop-before {
