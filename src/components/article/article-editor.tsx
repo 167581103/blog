@@ -11,19 +11,25 @@ import {
 } from "react";
 import { MarkdownEditorLazy } from "../editor/markdown-editor-lazy";
 import { CheckIcon, ChevronLeftIcon, SaveIcon } from "../chrome/icons";
+import { CategoryPicker } from "./category-picker";
 import { EditorSaveMeta } from "./editor-save-meta";
 import { formatEditStamp } from "@/lib/format-time";
-import type { Article, ArticleStatus } from "@/lib/types";
+import type { Article, ArticleStatus, Category } from "@/lib/types";
 
 type Props = {
   mode: "create" | "edit";
   article?: Article;
+  categories?: Category[];
   backHref?: string;
 };
 
 const AUTOSAVE_MS = 2500;
 
-export function ArticleEditor({ article, backHref = "/" }: Props) {
+export function ArticleEditor({
+  article,
+  categories: initialCategories = [],
+  backHref = "/",
+}: Props) {
   const router = useRouter();
   const [title, setTitle] = useState(article?.title ?? "");
   const [content, setContent] = useState(article?.content ?? "");
@@ -31,6 +37,11 @@ export function ArticleEditor({ article, backHref = "/" }: Props) {
   const [articleStatus, setArticleStatus] = useState<ArticleStatus>(
     article?.status ?? "draft",
   );
+  // Official placement only — local until Release; Save/autosave omit it.
+  const [categorySlug, setCategorySlug] = useState<string | null>(
+    article?.categorySlug ?? null,
+  );
+  const [categories, setCategories] = useState(initialCategories);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -44,6 +55,7 @@ export function ArticleEditor({ article, backHref = "/" }: Props) {
   const contentRef = useRef(content);
   const slugRef = useRef(slug);
   const statusRef = useRef(articleStatus);
+  const categorySlugRef = useRef(categorySlug);
   const dirtyRef = useRef(dirty);
   const uploadingRef = useRef(uploading);
   const pendingRef = useRef(pending);
@@ -61,6 +73,9 @@ export function ArticleEditor({ article, backHref = "/" }: Props) {
   useEffect(() => {
     statusRef.current = articleStatus;
   }, [articleStatus]);
+  useEffect(() => {
+    categorySlugRef.current = categorySlug;
+  }, [categorySlug]);
   useEffect(() => {
     dirtyRef.current = dirty;
   }, [dirty]);
@@ -109,16 +124,22 @@ export function ArticleEditor({ article, backHref = "/" }: Props) {
       startTransition(async () => {
         try {
           const currentSlug = slugRef.current;
+          const body: Record<string, unknown> = {
+            title: nextTitle,
+            content: nextContent,
+            status: nextStatus,
+          };
+          // Placement is not draft state — only commit on Release.
+          if (intent === "release") {
+            body.categorySlug = categorySlugRef.current;
+          }
+
           const res = await fetch(
             currentSlug ? `/api/articles/${currentSlug}` : "/api/articles",
             {
               method: currentSlug ? "PUT" : "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                title: nextTitle,
-                content: nextContent,
-                status: nextStatus,
-              }),
+              body: JSON.stringify(body),
             },
           );
 
@@ -140,6 +161,9 @@ export function ArticleEditor({ article, backHref = "/" }: Props) {
           const saved = data as Article;
           setSlug(saved.slug);
           setArticleStatus(saved.status);
+          if (intent === "release") {
+            setCategorySlug(saved.categorySlug ?? null);
+          }
           setLastSavedAt(Date.parse(saved.updatedAt) || Date.now());
           setNowTick(Date.now());
           setDirty(false);
@@ -229,6 +253,12 @@ export function ArticleEditor({ article, backHref = "/" }: Props) {
           >
             <ChevronLeftIcon className="h-5 w-5" />
           </Link>
+          <CategoryPicker
+            categories={categories}
+            value={categorySlug}
+            onChange={setCategorySlug}
+            onCategoriesChange={setCategories}
+          />
         </div>
 
         <input

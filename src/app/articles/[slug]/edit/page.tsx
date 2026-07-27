@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { ArticleEditor } from "@/components/article/article-editor";
 import { requireAdmin } from "@/lib/auth";
-import { getArticle } from "@/lib/storage";
+import { getArticle, listCategories } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -12,13 +12,17 @@ export default async function EditArticlePage({ params }: Props) {
   if (!session) redirect("/login");
 
   const { slug } = await params;
-  const article = await getArticle(slug);
+  const [article, categories] = await Promise.all([
+    getArticle(slug),
+    listCategories(),
+  ]);
   if (!article) notFound();
 
   return (
     <ArticleEditor
       mode="edit"
       article={article}
+      categories={categories}
       backHref={`/articles/${article.slug}`}
     />
   );

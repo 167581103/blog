@@ -24,10 +24,19 @@ type ArticleIndexItem = {
   slug: string;
   title: string;
   status: Article["status"];
+  categorySlug: string | null;
   updatedAt: string;
   publishedAt: string | null;
   url: string;
 };
+
+function normalizeCategorySlug(
+  value: string | null | undefined,
+): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed || null;
+}
 
 function sortIndex(items: ArticleIndexItem[]) {
   return items.sort((a, b) => {
@@ -48,6 +57,7 @@ async function writeIndex(articles: Article[], urls: Record<string, string>) {
         slug: a.slug,
         title: a.title,
         status: a.status,
+        categorySlug: normalizeCategorySlug(a.categorySlug),
         updatedAt: a.updatedAt,
         publishedAt: a.publishedAt,
         url: urls[a.slug] || "",
@@ -70,7 +80,15 @@ async function rebuildIndexFromBlobs(): Promise<Article[]> {
     await Promise.all(
       articleBlobs.map(async (b) => {
         const data = await readJsonByPath<Article>(b.pathname);
-        return data ? { article: data, url: b.url } : null;
+        return data
+          ? {
+              article: {
+                ...data,
+                categorySlug: normalizeCategorySlug(data.categorySlug),
+              },
+              url: b.url,
+            }
+          : null;
       }),
     )
   ).filter((x): x is { article: Article; url: string } => Boolean(x));
@@ -101,6 +119,7 @@ async function listArticlesUncached(options?: {
         title: item.title,
         content: "",
         status: item.status,
+        categorySlug: normalizeCategorySlug(item.categorySlug),
         createdAt: item.updatedAt,
         updatedAt: item.updatedAt,
         publishedAt: item.publishedAt,
@@ -133,7 +152,12 @@ async function getArticleUncached(slug: string): Promise<Article | null> {
   if (!isBlobConfigured()) return null;
 
   try {
-    return await readJsonByPath<Article>(articlePath(slug));
+    const data = await readJsonByPath<Article>(articlePath(slug));
+    if (!data) return null;
+    return {
+      ...data,
+      categorySlug: normalizeCategorySlug(data.categorySlug),
+    };
   } catch {
     return null;
   }
@@ -175,6 +199,7 @@ function upsertIndexItems(
     slug: article.slug,
     title: article.title,
     status: article.status,
+    categorySlug: normalizeCategorySlug(article.categorySlug),
     updatedAt: article.updatedAt,
     publishedAt: article.publishedAt,
     url,
@@ -195,6 +220,10 @@ export async function createArticle(input: ArticleInput): Promise<Article> {
     title: input.title.trim() || "Untitled",
     content: input.content,
     status: input.status,
+    categorySlug:
+      input.categorySlug !== undefined
+        ? normalizeCategorySlug(input.categorySlug)
+        : null,
     createdAt: now,
     updatedAt: now,
     publishedAt: input.status === "published" ? now : null,
@@ -230,6 +259,10 @@ export async function updateArticle(
     title: input.title.trim() || existing.title,
     content: input.content,
     status: input.status,
+    categorySlug:
+      input.categorySlug !== undefined
+        ? normalizeCategorySlug(input.categorySlug)
+        : normalizeCategorySlug(existing.categorySlug),
     updatedAt: now,
     publishedAt:
       input.status === "published"
