@@ -14,8 +14,8 @@ import {
   CheckIcon,
   ChevronLeftIcon,
   SaveIcon,
-  TrashIcon,
 } from "../chrome/icons";
+import { DeleteControl } from "../chrome/delete-control";
 import { CategoryPicker, type CategoryPickerHandle } from "./category-picker";
 import { EditorSaveMeta } from "./editor-save-meta";
 import { formatEditStamp } from "@/lib/format-time";
@@ -234,13 +234,6 @@ export function ArticleEditor({
   const remove = useCallback(() => {
     const currentSlug = slugRef.current;
     if (!currentSlug) return;
-    if (
-      !window.confirm(
-        "Delete this article permanently? This cannot be undone.",
-      )
-    ) {
-      return;
-    }
 
     setError(null);
     startTransition(async () => {
@@ -323,16 +316,7 @@ export function ArticleEditor({
         <div className="editor-bar-actions">
           <EditorSaveMeta stamp={editStamp} />
           {slug ? (
-            <button
-              type="button"
-              aria-label="Delete"
-              title="Delete"
-              disabled={busy}
-              onClick={remove}
-              className="icon-btn icon-btn-motion"
-            >
-              <TrashIcon className="h-5 w-5" />
-            </button>
+            <DeleteControl disabled={busy} busy={pending} onConfirm={remove} />
           ) : null}
           <button
             type="button"

@@ -9,6 +9,7 @@ import {
   OptimisticReadTitle,
 } from "@/components/article/optimistic-article";
 import { ReadCategoryControl } from "@/components/article/read-category-control";
+import { ReadDeleteControl } from "@/components/article/read-delete-control";
 import { ChevronLeftIcon } from "@/components/chrome/icons";
 import { auth } from "@/lib/auth";
 import { listComments } from "@/lib/db/comments";
@@ -93,6 +94,7 @@ export default async function ArticlePage({ params }: Props) {
           editHref={isAdmin ? `/articles/${article.slug}/edit` : undefined}
         />
         <div className="read-bar-actions">
+          {isAdmin ? <ReadDeleteControl slug={article.slug} /> : null}
           <ShareButton />
           <AccountControl user={accountUser} signInHref={signInHref} />
         </div>

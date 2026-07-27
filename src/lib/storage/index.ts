@@ -7,6 +7,7 @@ export {
   setArticleCategory,
   deleteArticle,
 } from "./articles";
+export { purgeExpiredTrash, listTrashedArticles } from "./trash";
 export {
   listCategories,
   createCategory,

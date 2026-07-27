@@ -13,6 +13,7 @@ import {
   putJson,
   readJsonByPath,
 } from "./blob";
+import { putArticleInTrash } from "./trash";
 
 const ARTICLES_PREFIX = "articles/";
 const INDEX_PATH = "articles/index.json";
@@ -377,12 +378,14 @@ export async function setArticleCategory(
   return article;
 }
 
+/** Soft-delete: move into trash (30-day retention), remove from the live index. */
 export async function deleteArticle(slug: string): Promise<boolean> {
   assertBlobConfigured();
-  const exists = await pathExists(articlePath(slug));
-  if (!exists) return false;
+  const existing = await getArticleUncached(slug);
+  if (!existing) return false;
 
   const index = (await readIndex()) || [];
+  await putArticleInTrash(existing);
   await Promise.all([
     deleteLogicalPath(articlePath(slug)),
     putJson(
