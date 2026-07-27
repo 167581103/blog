@@ -3,16 +3,20 @@ import { AdminArticleSections } from "@/components/article/admin-article-section
 import { ArticleList } from "@/components/article/article-list";
 import { OptimisticHome } from "@/components/home/optimistic-home";
 import { auth } from "@/lib/auth";
-import { getHomeContent, listArticles, listCategories } from "@/lib/storage";
+import {
+  getHomeContent,
+  listArticles,
+  listCategoryLayout,
+} from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const [session, home, all, categories] = await Promise.all([
+  const [session, home, all, layout] = await Promise.all([
     auth(),
     getHomeContent(),
     listArticles(true),
-    listCategories(),
+    listCategoryLayout(),
   ]);
   const isAdmin = Boolean(session?.user?.isAdmin);
   const articles = isAdmin
@@ -28,9 +32,9 @@ export default async function HomePage() {
           editHref={isAdmin ? "/home/edit" : undefined}
         />
         {isAdmin ? (
-          <AdminArticleSections articles={articles} categories={categories} />
+          <AdminArticleSections articles={articles} layout={layout} />
         ) : (
-          <ArticleList articles={articles} categories={categories} />
+          <ArticleList articles={articles} layout={layout} />
         )}
       </PageFade>
     </main>

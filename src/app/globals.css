@@ -127,22 +127,51 @@ textarea {
   gap: 1.5rem;
 }
 
-.article-sections {
+.article-rows {
   margin: 3.5rem 0 0;
   display: grid;
-  grid-template-columns: 1fr;
   gap: 2rem;
-  align-items: start;
 }
 
-.article-sections-wrap .article-sections {
+.article-sections-wrap .article-rows {
   margin: 0;
 }
 
+.article-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem 1.25rem;
+  align-items: start;
+}
+
 @media (min-width: 768px) {
-  .article-sections {
-    grid-template-columns: repeat(auto-fit, minmax(15.5rem, 1fr));
+  .article-row {
+    grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr));
   }
+}
+
+.article-row-insert {
+  height: 0.55rem;
+  margin: -0.35rem 0;
+  border-radius: 999px;
+  background: transparent;
+  transition: background-color 0.15s ease, height 0.15s ease;
+}
+
+.article-row-insert.is-active {
+  height: 0.7rem;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.article-row-append {
+  min-height: 4rem;
+  border: 1px dashed transparent;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.article-row-append.is-active {
+  border-color: var(--foreground);
+  background: rgba(0, 0, 0, 0.02);
 }
 
 .article-section {
