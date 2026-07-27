@@ -633,6 +633,16 @@ textarea {
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.08);
 }
 
+/* Bridge the visual gap so hover isn't lost between input and menu. */
+.category-picker-list::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 0.35rem;
+}
+
 .category-picker-option {
   display: block;
   width: 100%;
