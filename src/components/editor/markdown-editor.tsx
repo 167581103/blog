@@ -14,6 +14,10 @@ import { ImageCompare } from "./image-compare";
 import { FileAttachment } from "./file-attachment";
 import { LinkBubbleMenu } from "./link-bubble-menu";
 
+function isInternalHref(href: string) {
+  return /^(?:\/|#|\.\/|\.\.\/)/.test(href);
+}
+
 /** Link mark with Mod-k → TipTap BubbleMenu (create/edit), click selects the link. */
 const EditorLink = Link.extend({
   addKeyboardShortcuts() {
@@ -24,11 +28,12 @@ const EditorLink = Link.extend({
         }
         const { empty } = this.editor.state.selection;
         if (empty) return false;
+        // Start with a site path — relative hrefs are first-class here.
         return this.editor
           .chain()
           .focus()
           .extendMarkRange("link")
-          .setLink({ href: "https://" })
+          .setLink({ href: "/", target: null })
           .run();
       },
     };
@@ -36,11 +41,13 @@ const EditorLink = Link.extend({
   renderHTML({ HTMLAttributes }) {
     const href =
       typeof HTMLAttributes.href === "string" ? HTMLAttributes.href : "";
+    const internal = isInternalHref(href);
     return [
       "a",
       mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
         class: "md-link",
         title: href || undefined,
+        target: internal ? null : HTMLAttributes.target,
       }),
       0,
     ];
@@ -342,6 +349,17 @@ export function MarkdownEditor({
         linkOnPaste: true,
         markdownLinks: true,
         defaultProtocol: "https",
+        // TipTap default already allows many relatives; be explicit for /path, #hash.
+        isAllowedUri: (url, ctx) => {
+          if (!url) return false;
+          if (isInternalHref(url)) return true;
+          return ctx.defaultValidate(url);
+        },
+        HTMLAttributes: {
+          // Prefer same-tab for in-editor links; renderHTML overrides internals.
+          rel: "noopener noreferrer",
+          target: "_blank",
+        },
       }),
       Placeholder.configure({
         placeholder: placeholder ?? "Write in markdown…",
