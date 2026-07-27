@@ -10,11 +10,11 @@ import {
 import type { Category } from "../types";
 import { slugify } from "../slug";
 import {
-  assertBlobConfigured,
-  isBlobConfigured,
-  putJson,
-  readJsonByPath,
-} from "./blob";
+  assertDocStoreConfigured,
+  isDocStoreConfigured,
+  readDoc,
+  writeDoc,
+} from "./docs";
 import { listArticles } from "./articles";
 
 const INDEX_PATH = "categories/index.json";
@@ -62,18 +62,18 @@ function toLayout(raw: StoredCategories | null): CategoryLayout {
   return { categories: ordered, rows };
 }
 
-async function readDoc(): Promise<CategoryLayout> {
-  if (!isBlobConfigured()) return { categories: [], rows: [] };
+async function readLayout(): Promise<CategoryLayout> {
+  if (!isDocStoreConfigured()) return { categories: [], rows: [] };
   try {
-    const raw = await readJsonByPath<StoredCategories>(INDEX_PATH);
+    const raw = await readDoc<StoredCategories>(INDEX_PATH);
     return toLayout(raw);
   } catch {
     return { categories: [], rows: [] };
   }
 }
 
-async function writeDoc(layout: CategoryLayout) {
-  assertBlobConfigured();
+async function writeLayout(layout: CategoryLayout) {
+  assertDocStoreConfigured();
   const slugs = layout.categories.map((c) => c.slug);
   const rows = normalizeCategoryRows(layout.rows, slugs);
   const bySlug = new Map(layout.categories.map((c) => [c.slug, c]));
@@ -81,26 +81,26 @@ async function writeDoc(layout: CategoryLayout) {
     .map((slug) => bySlug.get(slug))
     .filter((c): c is Category => Boolean(c));
   const doc: CategoriesDoc = { categories, rows };
-  await putJson(INDEX_PATH, doc);
+  await writeDoc(INDEX_PATH, doc);
   return { categories, rows };
 }
 
 export const listCategoryLayout = cache(
-  async (): Promise<CategoryLayout> => readDoc(),
+  async (): Promise<CategoryLayout> => readLayout(),
 );
 
 /** Categories in homepage row-major order (picker matches homepage). */
 export const listCategories = cache(async (): Promise<Category[]> => {
-  const layout = await readDoc();
+  const layout = await readLayout();
   return layout.categories;
 });
 
 export async function createCategory(name: string): Promise<Category> {
-  assertBlobConfigured();
+  assertDocStoreConfigured();
   const trimmed = name.trim();
   if (!trimmed) throw new Error("Category name is required");
 
-  const layout = await readDoc();
+  const layout = await readLayout();
   const existing = layout.categories.find(
     (c) => c.name.toLowerCase() === trimmed.toLowerCase(),
   );
@@ -124,7 +124,7 @@ export async function createCategory(name: string): Promise<Category> {
     updatedAt: now,
   };
   // New columns start as their own full-width row.
-  await writeDoc({
+  await writeLayout({
     categories: [...layout.categories, category],
     rows: [...layout.rows, [slug]],
   });
@@ -135,11 +135,11 @@ export async function renameCategory(
   slug: string,
   name: string,
 ): Promise<Category | null> {
-  assertBlobConfigured();
+  assertDocStoreConfigured();
   const trimmed = name.trim();
   if (!trimmed) throw new Error("Category name is required");
 
-  const layout = await readDoc();
+  const layout = await readLayout();
   const index = layout.categories.findIndex((c) => c.slug === slug);
   if (index < 0) return null;
 
@@ -155,7 +155,7 @@ export async function renameCategory(
   const categories = layout.categories.map((c, i) =>
     i === index ? { ...c, name: trimmed, updatedAt: now } : c,
   );
-  const next = await writeDoc({ categories, rows: layout.rows });
+  const next = await writeLayout({ categories, rows: layout.rows });
   return next.categories.find((c) => c.slug === slug) ?? null;
 }
 
@@ -163,23 +163,23 @@ export async function renameCategory(
 export async function setCategoryRows(
   rows: string[][],
 ): Promise<CategoryLayout> {
-  assertBlobConfigured();
-  const layout = await readDoc();
+  assertDocStoreConfigured();
+  const layout = await readLayout();
   const slugs = layout.categories.map((c) => c.slug);
   const normalized = normalizeCategoryRows(rows, slugs);
   const flat = flattenCategoryRows(normalized);
   if (flat.length !== slugs.length) {
     throw new Error("Category rows must include every column");
   }
-  return writeDoc({ categories: layout.categories, rows: normalized });
+  return writeLayout({ categories: layout.categories, rows: normalized });
 }
 
 /**
  * Delete an empty column. Rejects when any live article still references it.
  */
 export async function deleteCategory(slug: string): Promise<CategoryLayout> {
-  assertBlobConfigured();
-  const layout = await readDoc();
+  assertDocStoreConfigured();
+  const layout = await readLayout();
   if (!layout.categories.some((c) => c.slug === slug)) {
     throw new Error("Category not found");
   }
@@ -189,7 +189,7 @@ export async function deleteCategory(slug: string): Promise<CategoryLayout> {
     throw new Error("Category still has articles");
   }
 
-  return writeDoc({
+  return writeLayout({
     categories: layout.categories.filter((c) => c.slug !== slug),
     rows: removeSlugFromRows(layout.rows, slug),
   });

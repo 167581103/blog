@@ -104,6 +104,22 @@ async function streamToJson<T>(
   }
 }
 
+/**
+ * A store over quota answers every download with `403 Your store is blocked`,
+ * while list/head keep working. Remember that for a short while so reads stop
+ * paying three round trips each, and recover on their own once it lifts.
+ */
+const BLOCKED_BACKOFF = 10 * 60 * 1000;
+let downloadsBlockedAt = 0;
+
+function downloadsBlocked() {
+  return Date.now() - downloadsBlockedAt < BLOCKED_BACKOFF;
+}
+
+function noteBlocked(status: number | string) {
+  if (String(status).includes("403")) downloadsBlockedAt = Date.now();
+}
+
 /** Low-volume diagnostics; only failure and self-heal paths log. */
 function logBlob(event: string, detail: Record<string, unknown>) {
   console.warn(`[blob] ${event}`, JSON.stringify(detail));
@@ -274,6 +290,7 @@ async function readFromRevisions<T>(pathname: string): Promise<T | null> {
  */
 export async function readJsonByPath<T>(pathname: string): Promise<T | null> {
   assertBlobConfigured();
+  if (downloadsBlocked()) return null;
 
   // Skip the anonymous CDN hop entirely once we know the store is private.
   if (preferredAccess !== "private") {
@@ -283,6 +300,7 @@ export async function readJsonByPath<T>(pathname: string): Promise<T | null> {
       return cdn.data;
     }
     logBlob("cdn-miss", { pathname, cdnStatus: cdn.status });
+    noteBlocked(cdn.status);
   }
 
   const viaSdk = await readBlobJson<T>(pathname);
@@ -293,6 +311,8 @@ export async function readJsonByPath<T>(pathname: string): Promise<T | null> {
     attempts: viaSdk.attempts,
     hasPublicUrl: Boolean(publicBlobUrl(pathname)),
   });
+  noteBlocked(viaSdk.attempts.join(" "));
+  if (downloadsBlocked()) return null;
 
   return readFromRevisions<T>(pathname);
 }

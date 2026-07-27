@@ -1,4 +1,3 @@
-import { list } from "@vercel/blob";
 import type { Article } from "../types";
 import {
   isTrashExpired,
@@ -6,13 +5,13 @@ import {
   TRASH_RETENTION_MS,
 } from "../trash";
 import {
-  assertBlobConfigured,
-  blobAuth,
-  deleteLogicalPath,
-  isBlobConfigured,
-  putJson,
-  readJsonByPath,
-} from "./blob";
+  assertDocStoreConfigured,
+  deleteDoc,
+  isDocStoreConfigured,
+  listDocPaths,
+  readDoc,
+  writeDoc,
+} from "./docs";
 
 const TRASH_PREFIX = "trash/articles/";
 
@@ -21,35 +20,33 @@ export function trashArticlePath(slug: string) {
 }
 
 export async function putArticleInTrash(article: Article): Promise<TrashedArticle> {
-  assertBlobConfigured();
+  assertDocStoreConfigured();
   const payload: TrashedArticle = {
     deletedAt: new Date().toISOString(),
     article,
   };
-  await putJson(trashArticlePath(article.slug), payload);
+  await writeDoc(trashArticlePath(article.slug), payload);
   return payload;
 }
 
 export async function getTrashedArticle(
   slug: string,
 ): Promise<TrashedArticle | null> {
-  if (!isBlobConfigured()) return null;
+  if (!isDocStoreConfigured()) return null;
   try {
-    return await readJsonByPath<TrashedArticle>(trashArticlePath(slug));
+    return await readDoc<TrashedArticle>(trashArticlePath(slug));
   } catch {
     return null;
   }
 }
 
 export async function listTrashedArticles(): Promise<TrashedArticle[]> {
-  if (!isBlobConfigured()) return [];
-  const auth = await blobAuth();
-  const { blobs } = await list({ prefix: TRASH_PREFIX, ...auth });
-  const files = blobs.filter(
-    (b) => b.pathname.endsWith(".json") && !b.pathname.includes(".rev/"),
-  );
+  if (!isDocStoreConfigured()) return [];
+  const paths = await listDocPaths(TRASH_PREFIX);
   const items = await Promise.all(
-    files.map((b) => readJsonByPath<TrashedArticle>(b.pathname)),
+    paths
+      .filter((path) => path.endsWith(".json"))
+      .map((path) => readDoc<TrashedArticle>(path)),
   );
   return items.filter((item): item is TrashedArticle => Boolean(item?.article));
 }
@@ -60,7 +57,7 @@ export async function purgeExpiredTrash(now = Date.now()): Promise<{
   retained: number;
   retentionMs: number;
 }> {
-  assertBlobConfigured();
+  assertDocStoreConfigured();
   const items = await listTrashedArticles();
   const purged: string[] = [];
   let retained = 0;
@@ -68,7 +65,7 @@ export async function purgeExpiredTrash(now = Date.now()): Promise<{
   for (const item of items) {
     const slug = item.article.slug;
     if (isTrashExpired(item.deletedAt, now)) {
-      await deleteLogicalPath(trashArticlePath(slug));
+      await deleteDoc(trashArticlePath(slug));
       purged.push(slug);
     } else {
       retained += 1;

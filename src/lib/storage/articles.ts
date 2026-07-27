@@ -4,18 +4,15 @@ import { randomUUID } from "node:crypto";
 import type { Article, ArticleInput } from "../types";
 import { hasUnpublishedChanges } from "../types";
 import { slugify } from "../slug";
+import { blobAuth, blobHostKind, isBlobConfigured, readBlobJson } from "./blob";
 import {
-  assertBlobConfigured,
-  blobAuth,
-  blobHostKind,
-  deleteLogicalPath,
-  isBlobConfigured,
-  pathExists,
-  publicBlobUrl,
-  putJson,
-  readBlobJson,
-  readJsonByPath,
-} from "./blob";
+  assertDocStoreConfigured,
+  deleteDoc,
+  docExists,
+  isDocStoreConfigured,
+  readDoc,
+  writeDoc,
+} from "./docs";
 import { putArticleInTrash } from "./trash";
 
 const ARTICLES_PREFIX = "articles/";
@@ -67,7 +64,7 @@ function sortIndex(items: ArticleIndexItem[]) {
 }
 
 async function readIndex(): Promise<ArticleIndexItem[] | null> {
-  return readJsonByPath<ArticleIndexItem[]>(INDEX_PATH);
+  return readDoc<ArticleIndexItem[]>(INDEX_PATH);
 }
 
 function toIndexItem(article: Article, url: string): ArticleIndexItem {
@@ -94,7 +91,7 @@ async function writeIndex(articles: Article[], urls: Record<string, string>) {
       .map((a) => toIndexItem(a, urls[a.slug] || ""))
       .filter((a) => a.url),
   );
-  await putJson(INDEX_PATH, items);
+  await writeDoc(INDEX_PATH, items);
 }
 
 /** An empty/missing index can mean a lost mirror, but rebuilds are costly. */
@@ -185,7 +182,7 @@ async function rebuildIndexFromBlobs(): Promise<Article[]> {
   // Restore canonical mirrors so the next request avoids list() entirely.
   await Promise.all(
     recovered.map((x) =>
-      putJson(articlePath(x.article.slug), x.article).catch(() => undefined),
+      writeDoc(articlePath(x.article.slug), x.article).catch(() => undefined),
     ),
   );
 
@@ -201,15 +198,15 @@ async function rebuildIndexFromBlobs(): Promise<Article[]> {
   return rebuilt;
 }
 
-/** Canonical public URL when resolvable, else the blob URL we just read. */
+/** Identifier stored on index rows; only its presence matters. */
 function publicArticleUrl(entry: { article: Article; url: string }) {
-  return publicBlobUrl(articlePath(entry.article.slug)) || entry.url;
+  return entry.url || `db:${articlePath(entry.article.slug)}`;
 }
 
 async function listArticlesUncached(options?: {
   includeDrafts?: boolean;
 }): Promise<Article[]> {
-  if (!isBlobConfigured()) return [];
+  if (!isDocStoreConfigured()) return [];
 
   try {
     const index = await readIndex();
@@ -271,10 +268,10 @@ export const listArticles = cache(
 );
 
 async function getArticleUncached(slug: string): Promise<Article | null> {
-  if (!isBlobConfigured()) return null;
+  if (!isDocStoreConfigured()) return null;
 
   try {
-    const data = await readJsonByPath<Article>(articlePath(slug));
+    const data = await readDoc<Article>(articlePath(slug));
     if (!data) return null;
     return normalizeArticle(data);
   } catch {
@@ -297,7 +294,7 @@ async function ensureUniqueSlug(
   while (true) {
     if (candidate === exclude) return candidate;
     if (!taken.has(candidate)) {
-      const exists = await pathExists(articlePath(candidate));
+      const exists = await docExists(articlePath(candidate));
       if (!exists || candidate === exclude) return candidate;
     }
     candidate = `${base}-${i}`;
@@ -319,7 +316,7 @@ function upsertIndexItems(
 }
 
 export async function createArticle(input: ArticleInput): Promise<Article> {
-  assertBlobConfigured();
+  assertDocStoreConfigured();
   const now = new Date().toISOString();
   const baseSlug = slugify(input.slug?.trim() || input.title);
   const index = (await readIndex()) || [];
@@ -344,8 +341,8 @@ export async function createArticle(input: ArticleInput): Promise<Article> {
     publishedAt: releasing ? now : null,
   };
 
-  const result = await putJson(articlePath(slug), article);
-  await putJson(INDEX_PATH, upsertIndexItems(index, article, result.url));
+  const result = await writeDoc(articlePath(slug), article);
+  await writeDoc(INDEX_PATH, upsertIndexItems(index, article, result.url));
   return article;
 }
 
@@ -353,7 +350,7 @@ export async function updateArticle(
   slug: string,
   input: ArticleInput,
 ): Promise<Article | null> {
-  assertBlobConfigured();
+  assertDocStoreConfigured();
 
   const [existingRaw, index] = await Promise.all([
     getArticleUncached(slug),
@@ -419,19 +416,19 @@ export async function updateArticle(
   const currentIndex = index || [];
 
   if (nextSlug !== existing.slug) {
-    const result = await putJson(articlePath(nextSlug), article);
+    const result = await writeDoc(articlePath(nextSlug), article);
     await Promise.all([
-      putJson(
+      writeDoc(
         INDEX_PATH,
         upsertIndexItems(currentIndex, article, result.url, existing.slug),
       ),
-      deleteLogicalPath(articlePath(existing.slug)),
+      deleteDoc(articlePath(existing.slug)),
     ]);
     return article;
   }
 
-  const result = await putJson(articlePath(nextSlug), article);
-  await putJson(
+  const result = await writeDoc(articlePath(nextSlug), article);
+  await writeDoc(
     INDEX_PATH,
     upsertIndexItems(currentIndex, article, result.url),
   );
@@ -443,7 +440,7 @@ export async function setArticleCategory(
   slug: string,
   categorySlug: string | null,
 ): Promise<Article | null> {
-  assertBlobConfigured();
+  assertDocStoreConfigured();
   const [existingRaw, index] = await Promise.all([
     getArticleUncached(slug),
     readIndex(),
@@ -456,8 +453,8 @@ export async function setArticleCategory(
     categorySlug: normalizeCategorySlug(categorySlug),
     updatedAt: now,
   };
-  const result = await putJson(articlePath(slug), article);
-  await putJson(
+  const result = await writeDoc(articlePath(slug), article);
+  await writeDoc(
     INDEX_PATH,
     upsertIndexItems(index || [], article, result.url),
   );
@@ -466,15 +463,15 @@ export async function setArticleCategory(
 
 /** Soft-delete: move into trash (30-day retention), remove from the live index. */
 export async function deleteArticle(slug: string): Promise<boolean> {
-  assertBlobConfigured();
+  assertDocStoreConfigured();
   const existing = await getArticleUncached(slug);
   if (!existing) return false;
 
   const index = (await readIndex()) || [];
   await putArticleInTrash(existing);
   await Promise.all([
-    deleteLogicalPath(articlePath(slug)),
-    putJson(
+    deleteDoc(articlePath(slug)),
+    writeDoc(
       INDEX_PATH,
       index.filter((i) => i.slug !== slug),
     ),

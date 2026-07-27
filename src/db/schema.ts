@@ -10,9 +10,21 @@ import {
 
 /**
  * Structured store (Neon Postgres).
- * Blob remains source of truth for article/home bodies;
- * this layer holds identity + relational features.
+ * Holds identity, relational features, and — since the Blob store can be
+ * blocked by quota — the JSON documents for articles, home, and categories.
  */
+
+/**
+ * Key-value JSON documents keyed by the logical Blob pathname
+ * (e.g. `articles/my-post.json`), so both backends share one addressing scheme.
+ */
+export const documents = pgTable("documents", {
+  path: text("path").primaryKey(),
+  data: jsonb("data").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
 
 export const users = pgTable("users", {
   /** GitHub numeric user id as string */

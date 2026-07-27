@@ -1,11 +1,11 @@
 import { cache } from "react";
 import type { HomeContent } from "../types";
 import {
-  assertBlobConfigured,
-  isBlobConfigured,
-  putJson,
-  readJsonByPath,
-} from "./blob";
+  assertDocStoreConfigured,
+  isDocStoreConfigured,
+  readDoc,
+  writeDoc,
+} from "./docs";
 
 const HOME_PATH = "site/home.json";
 
@@ -17,10 +17,10 @@ async function getHomeContentUncached(): Promise<HomeContent> {
     updatedAt: new Date(0).toISOString(),
   };
 
-  if (!isBlobConfigured()) return fallback;
+  if (!isDocStoreConfigured()) return fallback;
 
   try {
-    const data = await readJsonByPath<HomeContent>(HOME_PATH);
+    const data = await readDoc<HomeContent>(HOME_PATH);
     return data ?? fallback;
   } catch {
     return fallback;
@@ -32,12 +32,12 @@ export const getHomeContent = cache(getHomeContentUncached);
 export async function saveHomeContent(
   input: Pick<HomeContent, "title" | "content">,
 ): Promise<HomeContent> {
-  assertBlobConfigured();
+  assertDocStoreConfigured();
   const payload: HomeContent = {
     title: input.title.trim() || "Blog",
     content: input.content,
     updatedAt: new Date().toISOString(),
   };
-  await putJson(HOME_PATH, payload);
+  await writeDoc(HOME_PATH, payload);
   return payload;
 }

@@ -24,3 +24,4 @@ export {
   deleteResume,
 } from "./resume";
 export { uploadMedia } from "./media";
+export { importBlobDocuments } from "./import-blob";
