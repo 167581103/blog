@@ -8,6 +8,17 @@ export type CategoryLayout = {
   rows: string[][];
 };
 
+/**
+ * Drop destination, anchored by slug so indices stay stable after removal.
+ * - `solo-before`: new full-width row before the row that contains `anchor`
+ *   (`anchor === null` → append at end)
+ * - `inline-before` / `inline-after`: share a row with `anchor` (max 3)
+ */
+export type CategoryDropTarget =
+  | { mode: "solo-before"; anchor: string | null }
+  | { mode: "inline-before"; anchor: string }
+  | { mode: "inline-after"; anchor: string };
+
 export function flattenCategoryRows(rows: string[][]): string[] {
   return rows.flat();
 }
@@ -52,81 +63,51 @@ export function removeSlugFromRows(
     .filter((row) => row.length > 0);
 }
 
-/** Move `fromSlug` before `beforeSlug` (same or other row). */
-export function moveCategoryBefore(
-  rows: string[][],
-  fromSlug: string,
-  beforeSlug: string,
-): string[][] {
-  if (fromSlug === beforeSlug) return rows;
-  const without = removeSlugFromRows(rows, fromSlug);
-  const targetRow = without.findIndex((row) => row.includes(beforeSlug));
-  if (targetRow < 0) return rows;
-
-  const row = [...without[targetRow]!];
-  if (row.length >= MAX_CATEGORIES_PER_ROW) {
-    // Target row is full — park as its own row just above.
-    const next = [...without];
-    next.splice(targetRow, 0, [fromSlug]);
-    return next;
-  }
-
-  const at = row.indexOf(beforeSlug);
-  row.splice(at, 0, fromSlug);
-  const next = [...without];
-  next[targetRow] = row;
-  return next;
-}
-
-/** Append to a row when it still has room. */
-export function appendCategoryToRow(
-  rows: string[][],
-  fromSlug: string,
-  rowIndex: number,
-): string[][] {
-  const without = removeSlugFromRows(rows, fromSlug);
-  if (rowIndex < 0 || rowIndex >= without.length) {
-    return [...without, [fromSlug]];
-  }
-  const row = [...without[rowIndex]!];
-  if (row.length >= MAX_CATEGORIES_PER_ROW) return rows;
-  if (row.includes(fromSlug)) return rows;
-  row.push(fromSlug);
-  const next = [...without];
-  next[rowIndex] = row;
-  return next;
-}
-
-/** Insert `fromSlug` as a brand-new solo row at `rowIndex`. */
-export function insertCategoryAsRow(
-  rows: string[][],
-  fromSlug: string,
-  rowIndex: number,
-): string[][] {
-  const without = removeSlugFromRows(rows, fromSlug);
-  const next = [...without];
-  const at = Math.max(0, Math.min(rowIndex, next.length));
-  next.splice(at, 0, [fromSlug]);
-  return next;
+function rowIndexOf(rows: string[][], slug: string): number {
+  return rows.findIndex((row) => row.includes(slug));
 }
 
 /**
- * Pull a column out of a shared row onto its own full-width row,
- * parked at the same vertical position.
+ * Place `fromSlug` at `target`. Single entry-point for homepage DnD.
+ * If an inline target's row is full, falls back to a solo row beside it.
  */
-export function extractCategoryToSoloRow(
+export function placeCategory(
   rows: string[][],
-  slug: string,
+  fromSlug: string,
+  target: CategoryDropTarget,
 ): string[][] {
-  const rowIndex = rows.findIndex((row) => row.includes(slug));
-  if (rowIndex < 0) return rows;
-  const row = rows[rowIndex]!;
-  if (row.length <= 1) return rows;
+  if (target.mode !== "solo-before" && target.anchor === fromSlug) {
+    return rows;
+  }
 
-  const without = removeSlugFromRows(rows, slug);
+  const without = removeSlugFromRows(rows, fromSlug);
+
+  if (target.mode === "solo-before") {
+    if (target.anchor === null) return [...without, [fromSlug]];
+    const at = rowIndexOf(without, target.anchor);
+    if (at < 0) return [...without, [fromSlug]];
+    const next = [...without];
+    next.splice(at, 0, [fromSlug]);
+    return next;
+  }
+
+  const at = rowIndexOf(without, target.anchor);
+  if (at < 0) return [...without, [fromSlug]];
+
+  const row = [...without[at]!];
+  if (row.length >= MAX_CATEGORIES_PER_ROW) {
+    const next = [...without];
+    const insertAt = target.mode === "inline-before" ? at : at + 1;
+    next.splice(insertAt, 0, [fromSlug]);
+    return next;
+  }
+
+  const anchorPos = row.indexOf(target.anchor);
+  const insertAt =
+    target.mode === "inline-before" ? anchorPos : anchorPos + 1;
+  row.splice(insertAt, 0, fromSlug);
   const next = [...without];
-  const insertAt = Math.min(rowIndex, next.length);
-  next.splice(insertAt, 0, [slug]);
+  next[at] = row;
   return next;
 }
 
