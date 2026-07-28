@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { extractMarkdownOutline } from "@/lib/markdown-headings";
 
 type Props = {
@@ -9,20 +10,27 @@ type Props = {
 
 /**
  * ChatGPT-style side outline rail for the read page.
- * Collapsed: flat marks (active longer/darker). Hover or pin expands to
- * indented titles; the list scrolls independently and resets on collapse.
+ * Portaled to `document.body` so it is not trapped by `.page-fade`’s
+ * transform (which would make `position: fixed` relative to the article).
+ * Collapsed: flat marks. Hover/pin expands titles in the right margin.
  */
 export function ArticleOutlineRail({ content }: Props) {
   const headings = useMemo(
     () => extractMarkdownOutline(content),
     [content],
   );
+  const [mounted, setMounted] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [visible, setVisible] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [pinned, setPinned] = useState(false);
+  const [layout, setLayout] = useState({ right: 16, maxWidth: 180 });
   const listRef = useRef<HTMLOListElement>(null);
   const expanded = hovered || pinned;
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (headings.length < 2) {
@@ -53,9 +61,28 @@ export function ArticleOutlineRail({ content }: Props) {
       setVisible(rect.bottom < 72);
     };
 
+    /** Place the rail in the empty strip to the right of the article column. */
+    const updateLayout = () => {
+      const column =
+        document.querySelector(".read-body") ||
+        document.querySelector(".prose-blog");
+      if (!(column instanceof HTMLElement)) return;
+      const rect = column.getBoundingClientRect();
+      const gutter = window.innerWidth - rect.right;
+      if (gutter < 72) {
+        setLayout({ right: 14, maxWidth: 0 });
+        return;
+      }
+      setLayout({
+        right: 14,
+        maxWidth: Math.min(224, gutter - 24),
+      });
+    };
+
     const onScroll = () => {
       updateActive();
       updateVisibility();
+      updateLayout();
     };
 
     onScroll();
@@ -73,13 +100,17 @@ export function ArticleOutlineRail({ content }: Props) {
     }
   }, [expanded]);
 
-  if (headings.length < 2) return null;
+  if (!mounted || headings.length < 2 || layout.maxWidth < 72) return null;
 
-  return (
+  return createPortal(
     <aside
       className={`outline-rail${visible ? " is-visible" : ""}${
         expanded ? " is-expanded" : ""
       }${pinned ? " is-pinned" : ""}`}
+      style={{
+        right: layout.right,
+        ["--outline-rail-max-width" as string]: `${layout.maxWidth}px`,
+      }}
       aria-label="Reading outline"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -126,7 +157,8 @@ export function ArticleOutlineRail({ content }: Props) {
           );
         })}
       </ol>
-    </aside>
+    </aside>,
+    document.body,
   );
 }
 
