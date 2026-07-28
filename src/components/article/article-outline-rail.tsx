@@ -39,17 +39,20 @@ export function ArticleOutlineRail({ content }: Props) {
     }
 
     const topOutline = document.querySelector(".article-outline");
-    const headingEls = headings
-      .map((h) => document.getElementById(h.id))
-      .filter((el): el is HTMLElement => Boolean(el));
 
     const updateActive = () => {
-      const y = window.scrollY + 96;
-      let current: string | null = headings[0]?.id ?? null;
-      for (const el of headingEls) {
-        if (el.offsetTop <= y) current = el.id;
+      // Compare viewport positions — offsetTop is relative to offsetParent and
+      // was always “above” scrollY, so the last heading stayed active forever.
+      const marker = 108;
+      let current: string | null = null;
+      for (const heading of headings) {
+        const el = document.getElementById(heading.id);
+        if (!el) continue;
+        if (el.getBoundingClientRect().top <= marker) {
+          current = heading.id;
+        }
       }
-      setActiveId(current);
+      setActiveId(current ?? headings[0]?.id ?? null);
     };
 
     const updateVisibility = () => {
