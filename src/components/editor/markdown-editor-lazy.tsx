@@ -16,6 +16,7 @@ type Props = {
   onChange: (markdown: string) => void;
   placeholder?: string;
   onUploadingChange?: (uploading: boolean) => void;
+  onUploadError?: (message: string) => void;
 };
 
 /** TipTap is heavy — load only on editor routes. */

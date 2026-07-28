@@ -118,7 +118,9 @@ export function ArticleEditor({
       }
       if (nextContent.includes("blob:")) {
         if (!opts?.silent) {
-          setError("Wait for image upload to finish, then save again.");
+          setError(
+            "Image upload did not finish (or failed). Re-paste the image after fixing storage, then save.",
+          );
         }
         return;
       }
@@ -367,6 +369,7 @@ export function ArticleEditor({
             setDirty(true);
           }}
           onUploadingChange={setUploading}
+          onUploadError={setError}
         />
         {error ? <p className="form-error">{error}</p> : null}
       </div>

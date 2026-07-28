@@ -59,6 +59,7 @@ type Props = {
   onChange: (markdown: string) => void;
   placeholder?: string;
   onUploadingChange?: (uploading: boolean) => void;
+  onUploadError?: (message: string) => void;
 };
 
 async function uploadFile(file: File): Promise<string> {
@@ -67,10 +68,43 @@ async function uploadFile(file: File): Promise<string> {
   const res = await fetch("/api/upload", { method: "POST", body: form });
   if (!res.ok) {
     const data = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(data?.error || "Upload failed");
+    throw new Error(data?.error || `Upload failed (${res.status})`);
   }
   const data = (await res.json()) as { url: string };
   return data.url;
+}
+
+type UploadProgress = {
+  onUploadingChange?: (uploading: boolean) => void;
+  onUploadError?: (message: string) => void;
+};
+
+async function uploadAndReplace(
+  view: EditorView,
+  locals: { file: File; src: string }[],
+  progress?: UploadProgress,
+) {
+  progress?.onUploadingChange?.(true);
+  const failures: string[] = [];
+  try {
+    for (const local of locals) {
+      try {
+        const remote = await uploadFile(local.file);
+        replaceSrc(view, local.src, remote);
+      } catch (error) {
+        failures.push(
+          error instanceof Error ? error.message : "Upload failed",
+        );
+      } finally {
+        URL.revokeObjectURL(local.src);
+      }
+    }
+  } finally {
+    progress?.onUploadingChange?.(false);
+  }
+  if (failures.length) {
+    progress?.onUploadError?.(failures[0]);
+  }
 }
 
 function collectFiles(
@@ -180,7 +214,7 @@ function replaceSrc(view: EditorView, from: string, to: string) {
 function fillCompareWithImages(
   view: EditorView,
   files: File[],
-  onUploadingChange?: (uploading: boolean) => void,
+  progress?: UploadProgress,
 ): boolean {
   const selected = findSelectedCompare(view);
   if (!selected?.node || !files.length) return false;
@@ -225,33 +259,16 @@ function fillCompareWithImages(
   tr = tr.setSelection(NodeSelection.create(tr.doc, pos));
   view.dispatch(tr);
 
-  onUploadingChange?.(true);
-  void (async () => {
-    try {
-      for (const local of locals) {
-        try {
-          const remote = await uploadFile(local.file);
-          replaceSrc(view, local.src, remote);
-        } catch {
-          // keep preview
-        } finally {
-          URL.revokeObjectURL(local.src);
-        }
-      }
-    } finally {
-      onUploadingChange?.(false);
-    }
-  })();
-
+  void uploadAndReplace(view, locals, progress);
   return true;
 }
 
 async function pasteOrDropImages(
   view: EditorView,
   files: File[],
-  onUploadingChange?: (uploading: boolean) => void,
+  progress?: UploadProgress,
 ) {
-  if (fillCompareWithImages(view, files, onUploadingChange)) return;
+  if (fillCompareWithImages(view, files, progress)) return;
 
   const locals = files.map((file) => ({
     file,
@@ -263,34 +280,21 @@ async function pasteOrDropImages(
     locals.map((l) => ({ src: l.src, alt: l.alt })),
   );
 
-  onUploadingChange?.(true);
-  try {
-    for (const local of locals) {
-      try {
-        const remote = await uploadFile(local.file);
-        replaceSrc(view, local.src, remote);
-      } catch {
-        // keep local preview if upload fails
-      } finally {
-        URL.revokeObjectURL(local.src);
-      }
-    }
-  } finally {
-    onUploadingChange?.(false);
-  }
+  await uploadAndReplace(view, locals, progress);
 }
 
 async function pasteOrDropFiles(
   view: EditorView,
   files: File[],
-  onUploadingChange?: (uploading: boolean) => void,
+  progress?: UploadProgress,
 ) {
   const fileType = view.state.schema.nodes.fileAttachment;
   if (!fileType || !files.length) return;
 
   const locals = files.map((file) => ({
     file,
-    href: URL.createObjectURL(file),
+    src: URL.createObjectURL(file),
+    href: "",
     filename: file.name || "file",
     size: file.size,
     mime: file.type || "",
@@ -299,7 +303,7 @@ async function pasteOrDropFiles(
   let tr = view.state.tr;
   for (const local of locals) {
     const node = fileType.create({
-      href: local.href,
+      href: local.src,
       filename: local.filename,
       size: local.size,
       mime: local.mime,
@@ -308,21 +312,7 @@ async function pasteOrDropFiles(
   }
   view.dispatch(tr);
 
-  onUploadingChange?.(true);
-  try {
-    for (const local of locals) {
-      try {
-        const remote = await uploadFile(local.file);
-        replaceSrc(view, local.href, remote);
-      } catch {
-        // keep local
-      } finally {
-        URL.revokeObjectURL(local.href);
-      }
-    }
-  } finally {
-    onUploadingChange?.(false);
-  }
+  await uploadAndReplace(view, locals, progress);
 }
 
 export function MarkdownEditor({
@@ -330,7 +320,9 @@ export function MarkdownEditor({
   onChange,
   placeholder,
   onUploadingChange,
+  onUploadError,
 }: Props) {
+  const uploadProgress = { onUploadingChange, onUploadError };
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
@@ -386,10 +378,10 @@ export function MarkdownEditor({
         const others = files.filter((f) => !isImageFile(f));
         event.preventDefault();
         if (images.length) {
-          void pasteOrDropImages(view, images, onUploadingChange);
+          void pasteOrDropImages(view, images, uploadProgress);
         }
         if (others.length) {
-          void pasteOrDropFiles(view, others, onUploadingChange);
+          void pasteOrDropFiles(view, others, uploadProgress);
         }
         return true;
       },
@@ -400,10 +392,10 @@ export function MarkdownEditor({
         const others = files.filter((f) => !isImageFile(f));
         event.preventDefault();
         if (images.length) {
-          void pasteOrDropImages(view, images, onUploadingChange);
+          void pasteOrDropImages(view, images, uploadProgress);
         }
         if (others.length) {
-          void pasteOrDropFiles(view, others, onUploadingChange);
+          void pasteOrDropFiles(view, others, uploadProgress);
         }
         return true;
       },
