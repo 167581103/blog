@@ -750,20 +750,22 @@ textarea {
   opacity: 0.55;
 }
 
-/* Side outline rail — collapsed marks, hover/pin expands to text. */
+/* Side outline rail — sits in the right viewport margin, never over prose. */
 .outline-rail {
   --rail-mark: 0.55rem;
   --rail-mark-active: 1.05rem;
+  --rail-gutter: max(0.75rem, calc((100vw - var(--measure-read)) / 2 - 1.25rem));
   position: fixed;
   top: 50%;
-  right: max(0.75rem, calc((100vw - var(--measure-read)) / 2 - 2.75rem));
+  /* Anchor to the viewport’s right edge so marks live in the empty margin. */
+  right: 1.1rem;
   z-index: 6;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 0.35rem;
   max-height: min(70vh, 32rem);
-  padding: 0.35rem 0.15rem 0.35rem 0.35rem;
+  padding: 0.45rem 0.2rem 0.45rem 0.45rem;
   transform: translateY(-50%) translateX(0.35rem);
   opacity: 0;
   pointer-events: none;
@@ -824,9 +826,13 @@ textarea {
 .outline-rail.is-expanded .outline-rail-list {
   align-items: stretch;
   overflow-y: auto;
-  padding-right: 0.15rem;
-  min-width: 11rem;
-  max-width: 15rem;
+  /* Stay inside the right margin when possible; soft panel if it peeks over. */
+  width: min(14rem, var(--rail-gutter));
+  min-width: 0;
+  padding: 0.55rem 0.45rem 0.55rem 0.65rem;
+  background: rgba(250, 250, 250, 0.92);
+  backdrop-filter: blur(8px);
+  box-shadow: -12px 0 24px rgba(250, 250, 250, 0.65);
 }
 
 .outline-rail-item {
@@ -845,6 +851,7 @@ textarea {
 
 .outline-rail-mark {
   display: block;
+  flex: 0 0 auto;
   width: var(--rail-mark);
   height: 2px;
   background: rgba(0, 0, 0, 0.22);
@@ -861,12 +868,13 @@ textarea {
 
 .outline-rail-label {
   display: none;
+  flex: 1 1 auto;
   font-family: var(--font-display), sans-serif;
   font-size: 0.78rem;
   letter-spacing: -0.01em;
   line-height: 1.3;
   color: rgba(0, 0, 0, 0.38);
-  max-width: 13rem;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -886,14 +894,15 @@ textarea {
 
 .outline-rail.is-expanded .outline-rail-item a {
   justify-content: flex-start;
+  flex-direction: row-reverse;
 }
 
 .outline-rail.is-expanded .outline-rail-item.is-h2 .outline-rail-label {
-  padding-left: 0.55rem;
+  padding-right: 0.55rem;
 }
 
 .outline-rail.is-expanded .outline-rail-item.is-h3 .outline-rail-label {
-  padding-left: 1.05rem;
+  padding-right: 1.05rem;
   font-size: 0.74rem;
 }
 
@@ -910,7 +919,8 @@ textarea {
   background: var(--foreground);
 }
 
-@media (max-width: 960px) {
+/* Need a real right margin; hide when the column is nearly full-bleed. */
+@media (max-width: 1100px) {
   .outline-rail {
     display: none;
   }
