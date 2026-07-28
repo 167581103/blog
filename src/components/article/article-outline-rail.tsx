@@ -1,0 +1,149 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import { extractMarkdownOutline } from "@/lib/markdown-headings";
+
+type Props = {
+  content: string;
+};
+
+/**
+ * ChatGPT-style side outline rail for the read page.
+ * Collapsed: flat marks (active longer/darker). Hover or pin expands to
+ * indented titles; the list scrolls independently and resets on collapse.
+ */
+export function ArticleOutlineRail({ content }: Props) {
+  const headings = useMemo(
+    () => extractMarkdownOutline(content),
+    [content],
+  );
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [visible, setVisible] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const listRef = useRef<HTMLOListElement>(null);
+  const expanded = hovered || pinned;
+
+  useEffect(() => {
+    if (headings.length < 2) {
+      setVisible(false);
+      return;
+    }
+
+    const topOutline = document.querySelector(".article-outline");
+    const headingEls = headings
+      .map((h) => document.getElementById(h.id))
+      .filter((el): el is HTMLElement => Boolean(el));
+
+    const updateActive = () => {
+      const y = window.scrollY + 96;
+      let current: string | null = headings[0]?.id ?? null;
+      for (const el of headingEls) {
+        if (el.offsetTop <= y) current = el.id;
+      }
+      setActiveId(current);
+    };
+
+    const updateVisibility = () => {
+      if (!topOutline) {
+        setVisible(window.scrollY > 120);
+        return;
+      }
+      const rect = topOutline.getBoundingClientRect();
+      setVisible(rect.bottom < 72);
+    };
+
+    const onScroll = () => {
+      updateActive();
+      updateVisibility();
+    };
+
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, [headings]);
+
+  useEffect(() => {
+    if (!expanded && listRef.current) {
+      listRef.current.scrollTop = 0;
+    }
+  }, [expanded]);
+
+  if (headings.length < 2) return null;
+
+  return (
+    <aside
+      className={`outline-rail${visible ? " is-visible" : ""}${
+        expanded ? " is-expanded" : ""
+      }${pinned ? " is-pinned" : ""}`}
+      aria-label="Reading outline"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <button
+        type="button"
+        className={`outline-rail-pin${pinned ? " is-on" : ""}`}
+        aria-pressed={pinned}
+        aria-label={pinned ? "Unpin outline" : "Pin outline open"}
+        title={pinned ? "Unpin" : "Pin"}
+        onClick={() => setPinned((value) => !value)}
+      >
+        <PinIcon />
+      </button>
+
+      <ol
+        ref={listRef}
+        className="outline-rail-list"
+        data-mode={expanded ? "text" : "marks"}
+      >
+        {headings.map((heading) => {
+          const active = heading.id === activeId;
+          return (
+            <li
+              key={`${heading.id}-${heading.level}`}
+              className={`outline-rail-item is-h${heading.level}${
+                active ? " is-active" : ""
+              }`}
+            >
+              <a
+                href={`#${heading.id}`}
+                onClick={(event) => {
+                  event.preventDefault();
+                  const el = document.getElementById(heading.id);
+                  el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  setActiveId(heading.id);
+                  history.replaceState(null, "", `#${heading.id}`);
+                }}
+              >
+                <span className="outline-rail-mark" aria-hidden="true" />
+                <span className="outline-rail-label">{heading.text}</span>
+              </a>
+            </li>
+          );
+        })}
+      </ol>
+    </aside>
+  );
+}
+
+function PinIcon() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      aria-hidden="true"
+    >
+      <path d="M8 1.5v6.5" strokeLinecap="round" />
+      <path d="M4.5 3.5h7l-1 4.5H5.5L4.5 3.5Z" strokeLinejoin="round" />
+      <path d="M8 8v6" strokeLinecap="round" />
+    </svg>
+  );
+}
