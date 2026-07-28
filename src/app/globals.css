@@ -750,16 +750,15 @@ textarea {
   opacity: 0.55;
 }
 
-/* Side outline rail — sits in the right viewport margin, never over prose. */
+/* Side outline rail — portaled to body; lives in the right viewport gutter. */
 .outline-rail {
   --rail-mark: 0.55rem;
   --rail-mark-active: 1.05rem;
-  --rail-gutter: max(0.75rem, calc((100vw - var(--measure-read)) / 2 - 1.25rem));
+  --outline-rail-max-width: 12rem;
   position: fixed;
   top: 50%;
-  /* Anchor to the viewport’s right edge so marks live in the empty margin. */
-  right: 1.1rem;
-  z-index: 6;
+  right: 1rem;
+  z-index: 20;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -826,13 +825,11 @@ textarea {
 .outline-rail.is-expanded .outline-rail-list {
   align-items: stretch;
   overflow-y: auto;
-  /* Stay inside the right margin when possible; soft panel if it peeks over. */
-  width: min(14rem, var(--rail-gutter));
+  width: min(14rem, var(--outline-rail-max-width));
   min-width: 0;
   padding: 0.55rem 0.45rem 0.55rem 0.65rem;
-  background: rgba(250, 250, 250, 0.92);
+  background: rgba(250, 250, 250, 0.94);
   backdrop-filter: blur(8px);
-  box-shadow: -12px 0 24px rgba(250, 250, 250, 0.65);
 }
 
 .outline-rail-item {
@@ -898,11 +895,11 @@ textarea {
 }
 
 .outline-rail.is-expanded .outline-rail-item.is-h2 .outline-rail-label {
-  padding-right: 0.55rem;
+  padding-left: 0.55rem;
 }
 
 .outline-rail.is-expanded .outline-rail-item.is-h3 .outline-rail-label {
-  padding-right: 1.05rem;
+  padding-left: 1.05rem;
   font-size: 0.74rem;
 }
 
@@ -919,7 +916,6 @@ textarea {
   background: var(--foreground);
 }
 
-/* Need a real right margin; hide when the column is nearly full-bleed. */
 @media (max-width: 1100px) {
   .outline-rail {
     display: none;
