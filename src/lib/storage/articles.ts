@@ -5,14 +5,20 @@ import type { Article, ArticleInput } from "../types";
 import { hasUnpublishedChanges } from "../types";
 import { slugify } from "../slug";
 import {
-  assertBlobConfigured,
   blobAuth,
-  deleteLogicalPath,
+  blobDownloadsBlocked,
+  blobHostKind,
   isBlobConfigured,
-  pathExists,
-  putJson,
-  readJsonByPath,
+  readBlobJson,
 } from "./blob";
+import {
+  assertDocStoreConfigured,
+  deleteDoc,
+  docExists,
+  isDocStoreConfigured,
+  readDoc,
+  writeDoc,
+} from "./docs";
 import { putArticleInTrash } from "./trash";
 
 const ARTICLES_PREFIX = "articles/";
@@ -64,7 +70,7 @@ function sortIndex(items: ArticleIndexItem[]) {
 }
 
 async function readIndex(): Promise<ArticleIndexItem[] | null> {
-  return readJsonByPath<ArticleIndexItem[]>(INDEX_PATH);
+  return readDoc<ArticleIndexItem[]>(INDEX_PATH);
 }
 
 function toIndexItem(article: Article, url: string): ArticleIndexItem {
@@ -91,61 +97,133 @@ async function writeIndex(articles: Article[], urls: Record<string, string>) {
       .map((a) => toIndexItem(a, urls[a.slug] || ""))
       .filter((a) => a.url),
   );
-  await putJson(INDEX_PATH, items);
+  await writeDoc(INDEX_PATH, items);
+}
+
+/** An empty/missing index can mean a lost mirror, but rebuilds are costly. */
+const REBUILD_TTL = 5 * 60 * 1000;
+let lastRebuildAt = 0;
+
+function shouldRebuild() {
+  if (Date.now() - lastRebuildAt < REBUILD_TTL) return false;
+  lastRebuildAt = Date.now();
+  return true;
+}
+
+/** Logical article path for a canonical blob or a `<path>.rev/<file>` entry. */
+function logicalArticlePath(pathname: string): string | null {
+  const revAt = pathname.indexOf(".json.rev/");
+  const logical = revAt >= 0 ? pathname.slice(0, revAt + ".json".length) : pathname;
+  if (!logical.endsWith(".json")) return null;
+  if (logical === INDEX_PATH) return null;
+  return logical;
 }
 
 /**
- * Last-resort rebuild via Advanced `list()`. Avoid calling this while Blob
- * Advanced quota is exhausted — prefer the CDN-backed index.json mirror.
+ * Last-resort rebuild via a single Advanced `list()`. Handles stores where the
+ * canonical mirror is missing and only `<path>.rev/` snapshots survived, then
+ * rewrites the mirrors so later reads stay on the cheap CDN path.
  */
 async function rebuildIndexFromBlobs(): Promise<Article[]> {
+  // Listing still succeeds on a blocked store, but every download fails.
+  if (!isBlobConfigured() || blobDownloadsBlocked()) return [];
+
+  let listed: { pathname: string; url: string; uploadedAt: Date }[];
   try {
     const auth = await blobAuth();
     const { blobs } = await list({ prefix: ARTICLES_PREFIX, ...auth });
-    const articleBlobs = blobs.filter(
-      (b) =>
-        b.pathname.endsWith(".json") &&
-        b.pathname !== INDEX_PATH &&
-        !b.pathname.includes(".rev/"),
+    listed = blobs;
+  } catch (error) {
+    console.warn(
+      "[blob] article-rebuild-list-failed",
+      error instanceof Error ? `${error.name}: ${error.message}` : String(error),
     );
-    const articles = (
-      await Promise.all(
-        articleBlobs.map(async (b) => {
-          const data = await readJsonByPath<Article>(b.pathname);
-          return data
-            ? { article: normalizeArticle(data), url: b.url }
-            : null;
-        }),
-      )
-    ).filter((x): x is { article: Article; url: string } => Boolean(x));
-
-    const rebuilt = articles.map((x) => x.article);
-    const urls = Object.fromEntries(
-      articles.map((x) => [x.article.slug, x.url]),
-    );
-    try {
-      await writeIndex(rebuilt, urls);
-    } catch {
-      // index write is best-effort (may fail if Advanced is frozen)
-    }
-    return rebuilt;
-  } catch {
     return [];
   }
+
+  // Newest blob per logical article path, canonical or revision.
+  const newestByPath = new Map<
+    string,
+    { pathname: string; url: string; uploadedAt: Date }
+  >();
+  for (const blob of listed) {
+    const logical = logicalArticlePath(blob.pathname);
+    if (!logical) continue;
+    const current = newestByPath.get(logical);
+    const isCanonical = blob.pathname === logical;
+    // Canonical wins ties so a fresh mirror is preferred over old snapshots.
+    if (
+      !current ||
+      blob.uploadedAt.getTime() > current.uploadedAt.getTime() ||
+      (isCanonical &&
+        blob.uploadedAt.getTime() === current.uploadedAt.getTime())
+    ) {
+      newestByPath.set(logical, {
+        pathname: blob.pathname,
+        url: blob.url,
+        uploadedAt: blob.uploadedAt,
+      });
+    }
+  }
+
+  const recovered = (
+    await Promise.all(
+      [...newestByPath].map(async ([logical, blob]) => {
+        const { data } = await readBlobJson<Article>(blob.pathname);
+        if (!data?.slug) return null;
+        return { logical, article: normalizeArticle(data), url: blob.url };
+      }),
+    )
+  ).filter(
+    (x): x is { logical: string; article: Article; url: string } => Boolean(x),
+  );
+
+  console.warn(
+    "[blob] article-rebuild",
+    JSON.stringify({
+      listed: listed.length,
+      candidates: newestByPath.size,
+      recovered: recovered.length,
+      hostKind: listed.length ? blobHostKind(listed[0].url) : "none",
+    }),
+  );
+
+  // Restore canonical mirrors so the next request avoids list() entirely.
+  await Promise.all(
+    recovered.map((x) =>
+      writeDoc(articlePath(x.article.slug), x.article).catch(() => undefined),
+    ),
+  );
+
+  const rebuilt = recovered.map((x) => x.article);
+  const urls = Object.fromEntries(
+    recovered.map((x) => [x.article.slug, publicArticleUrl(x)]),
+  );
+  try {
+    await writeIndex(rebuilt, urls);
+  } catch {
+    // index write is best-effort (may fail if Advanced is frozen)
+  }
+  return rebuilt;
+}
+
+/** Identifier stored on index rows; only its presence matters. */
+function publicArticleUrl(entry: { article: Article; url: string }) {
+  return entry.url || `db:${articlePath(entry.article.slug)}`;
 }
 
 async function listArticlesUncached(options?: {
   includeDrafts?: boolean;
 }): Promise<Article[]> {
-  if (!isBlobConfigured()) return [];
+  if (!isDocStoreConfigured()) return [];
 
   try {
     const index = await readIndex();
     let articles: Article[];
 
-    // Use any successfully-read index (including empty). Only rebuild when
-    // the index object itself is missing — rebuild uses Advanced `list()`.
-    if (index !== null) {
+    // A missing or empty index may just be a lost canonical mirror, so try one
+    // guarded rebuild; a populated index always wins and costs no list().
+    if (index?.length) {
       articles = index.map((item) => {
         const base: Article = {
           id: item.slug,
@@ -172,8 +250,10 @@ async function listArticlesUncached(options?: {
         };
         return base;
       });
-    } else {
+    } else if (shouldRebuild()) {
       articles = await rebuildIndexFromBlobs();
+    } else {
+      articles = [];
     }
 
     const visible = options?.includeDrafts
@@ -197,10 +277,10 @@ export const listArticles = cache(
 );
 
 async function getArticleUncached(slug: string): Promise<Article | null> {
-  if (!isBlobConfigured()) return null;
+  if (!isDocStoreConfigured()) return null;
 
   try {
-    const data = await readJsonByPath<Article>(articlePath(slug));
+    const data = await readDoc<Article>(articlePath(slug));
     if (!data) return null;
     return normalizeArticle(data);
   } catch {
@@ -223,7 +303,7 @@ async function ensureUniqueSlug(
   while (true) {
     if (candidate === exclude) return candidate;
     if (!taken.has(candidate)) {
-      const exists = await pathExists(articlePath(candidate));
+      const exists = await docExists(articlePath(candidate));
       if (!exists || candidate === exclude) return candidate;
     }
     candidate = `${base}-${i}`;
@@ -245,7 +325,7 @@ function upsertIndexItems(
 }
 
 export async function createArticle(input: ArticleInput): Promise<Article> {
-  assertBlobConfigured();
+  assertDocStoreConfigured();
   const now = new Date().toISOString();
   const baseSlug = slugify(input.slug?.trim() || input.title);
   const index = (await readIndex()) || [];
@@ -270,8 +350,8 @@ export async function createArticle(input: ArticleInput): Promise<Article> {
     publishedAt: releasing ? now : null,
   };
 
-  const result = await putJson(articlePath(slug), article);
-  await putJson(INDEX_PATH, upsertIndexItems(index, article, result.url));
+  const result = await writeDoc(articlePath(slug), article);
+  await writeDoc(INDEX_PATH, upsertIndexItems(index, article, result.url));
   return article;
 }
 
@@ -279,7 +359,7 @@ export async function updateArticle(
   slug: string,
   input: ArticleInput,
 ): Promise<Article | null> {
-  assertBlobConfigured();
+  assertDocStoreConfigured();
 
   const [existingRaw, index] = await Promise.all([
     getArticleUncached(slug),
@@ -345,19 +425,19 @@ export async function updateArticle(
   const currentIndex = index || [];
 
   if (nextSlug !== existing.slug) {
-    const result = await putJson(articlePath(nextSlug), article);
+    const result = await writeDoc(articlePath(nextSlug), article);
     await Promise.all([
-      putJson(
+      writeDoc(
         INDEX_PATH,
         upsertIndexItems(currentIndex, article, result.url, existing.slug),
       ),
-      deleteLogicalPath(articlePath(existing.slug)),
+      deleteDoc(articlePath(existing.slug)),
     ]);
     return article;
   }
 
-  const result = await putJson(articlePath(nextSlug), article);
-  await putJson(
+  const result = await writeDoc(articlePath(nextSlug), article);
+  await writeDoc(
     INDEX_PATH,
     upsertIndexItems(currentIndex, article, result.url),
   );
@@ -369,7 +449,7 @@ export async function setArticleCategory(
   slug: string,
   categorySlug: string | null,
 ): Promise<Article | null> {
-  assertBlobConfigured();
+  assertDocStoreConfigured();
   const [existingRaw, index] = await Promise.all([
     getArticleUncached(slug),
     readIndex(),
@@ -382,8 +462,8 @@ export async function setArticleCategory(
     categorySlug: normalizeCategorySlug(categorySlug),
     updatedAt: now,
   };
-  const result = await putJson(articlePath(slug), article);
-  await putJson(
+  const result = await writeDoc(articlePath(slug), article);
+  await writeDoc(
     INDEX_PATH,
     upsertIndexItems(index || [], article, result.url),
   );
@@ -392,15 +472,15 @@ export async function setArticleCategory(
 
 /** Soft-delete: move into trash (30-day retention), remove from the live index. */
 export async function deleteArticle(slug: string): Promise<boolean> {
-  assertBlobConfigured();
+  assertDocStoreConfigured();
   const existing = await getArticleUncached(slug);
   if (!existing) return false;
 
   const index = (await readIndex()) || [];
   await putArticleInTrash(existing);
   await Promise.all([
-    deleteLogicalPath(articlePath(slug)),
-    putJson(
+    deleteDoc(articlePath(slug)),
+    writeDoc(
       INDEX_PATH,
       index.filter((i) => i.slug !== slug),
     ),

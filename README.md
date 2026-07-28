@@ -6,16 +6,22 @@ Personal blog — read publicly; sign in with GitHub to comment; the owner accou
 
 - Next.js (App Router) on Vercel
 - Auth.js (GitHub OAuth) — any GitHub user can sign in; admin-only write gates
-- Vercel Blob for article/home bodies and media
-- Neon Postgres + Drizzle for users, comments, and future structured features
+- Neon Postgres + Drizzle for article/home/category documents, users, comments
+- Vercel Blob for media uploads and the resume PDF
 - TipTap markdown editor with paste/drop image upload
 
 ## Storage model
 
 | Layer | Holds |
 | --- | --- |
-| Vercel Blob | Home JSON, article JSON, uploads, resume |
-| Neon Postgres | `users`, `comments`, plus reserved `tags` / `article_tags` / `annotations` |
+| Neon Postgres | `documents` (home / article / category / trash JSON, keyed by logical path), `users`, `comments`, plus reserved `tags` / `article_tags` / `annotations` |
+| Vercel Blob | Media uploads and resume |
+
+Documents were originally stored in Blob. Postgres is now the source of truth,
+and Blob is read only as a fallback — anything found there is copied into
+Postgres on read. `POST /api/admin/import-blob` (admin session) runs that import
+for every document at once, which is the way back if a Blob store was blocked by
+quota while its content was still needed.
 
 ## Pages
 

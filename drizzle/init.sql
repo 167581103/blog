@@ -1,6 +1,14 @@
 -- Run once in Neon SQL Editor after connecting the DB to Vercel.
 -- Safe to re-run only on an empty database.
 
+-- JSON documents (articles, home, categories, trash) keyed by logical path.
+-- The app also creates this on demand, so running it here is optional.
+CREATE TABLE IF NOT EXISTS "documents" (
+	"path" text PRIMARY KEY NOT NULL,
+	"data" jsonb NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS "users" (
 	"id" text PRIMARY KEY NOT NULL,
 	"login" text NOT NULL,
