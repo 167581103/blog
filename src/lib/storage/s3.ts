@@ -2,9 +2,9 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
-import { Upload } from "@aws-sdk/lib-storage";
 
 /**
  * AWS S3 (Access Point) for static media: editor uploads and resume PDF.
@@ -69,6 +69,8 @@ function client(): S3Client {
   if (!_client) {
     _client = new S3Client({
       region: region(),
+      // Access Point ARNs embed their region; let the SDK follow it.
+      useArnRegion: true,
       credentials: {
         accessKeyId: process.env.AWS_ACCESS_KEY_ID!.trim(),
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!.trim(),
@@ -106,18 +108,27 @@ export async function putObject(input: {
   const key = input.key.replace(/^\//, "");
   const bytes = await bodyToUint8Array(input.body);
 
-  // Multipart upload handles large pastes without buffering twice in SDK.
-  const upload = new Upload({
-    client: client(),
-    params: {
-      Bucket: bucket(),
-      Key: key,
-      Body: bytes,
-      ContentType: input.contentType || "application/octet-stream",
-      CacheControl: input.cacheControl || MEDIA_CACHE_CONTROL,
-    },
-  });
-  await upload.done();
+  try {
+    // Single PutObject — avoids multipart IAM actions (CreateMultipartUpload…).
+    await client().send(
+      new PutObjectCommand({
+        Bucket: bucket(),
+        Key: key,
+        Body: bytes,
+        ContentType: input.contentType || "application/octet-stream",
+        CacheControl: input.cacheControl || MEDIA_CACHE_CONTROL,
+      }),
+    );
+  } catch (error) {
+    const name = error instanceof Error ? error.name : "Error";
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("[s3] putObject failed:", name, message, {
+      bucketKind: bucket().startsWith("arn:") ? "access-point" : "bucket",
+      key,
+      region: region(),
+    });
+    throw new Error(`S3 upload failed (${name}): ${message}`);
+  }
 
   return { key, url: publicObjectUrl(key) };
 }
