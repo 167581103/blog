@@ -7,7 +7,8 @@ Personal blog — read publicly; sign in with GitHub to comment; the owner accou
 - Next.js (App Router) on Vercel
 - Auth.js (GitHub OAuth) — any GitHub user can sign in; admin-only write gates
 - Neon Postgres + Drizzle for article/home/category documents, users, comments
-- Vercel Blob for media uploads and the resume PDF
+- AWS S3 (Access Point) for editor media uploads and the resume PDF
+- Vercel Blob kept as an optional legacy fallback / one-shot JSON import
 - TipTap markdown editor with paste/drop image upload
 
 ## Storage model
@@ -15,13 +16,13 @@ Personal blog — read publicly; sign in with GitHub to comment; the owner accou
 | Layer | Holds |
 | --- | --- |
 | Neon Postgres | `documents` (home / article / category / trash JSON, keyed by logical path), `users`, `comments`, plus reserved `tags` / `article_tags` / `annotations` |
-| Vercel Blob | Media uploads and resume |
+| AWS S3 | Editor uploads (`uploads/…`) and resume PDF (`site/resume.pdf`) via an Access Point |
+| Vercel Blob | Optional legacy fallback for media; one-shot `POST /api/admin/import-blob` to pull old JSON into Postgres |
 
-Documents were originally stored in Blob. Postgres is now the source of truth,
-and Blob is read only as a fallback — anything found there is copied into
-Postgres on read. `POST /api/admin/import-blob` (admin session) runs that import
-for every document at once, which is the way back if a Blob store was blocked by
-quota while its content was still needed.
+Set `S3_ACCESS_POINT_ARN`, `AWS_REGION`, and IAM credentials on Vercel. Without
+`S3_PUBLIC_BASE_URL`, uploaded files are served through `/api/media/...` so the
+Access Point can stay private. Point `S3_PUBLIC_BASE_URL` at CloudFront (or any
+public origin) when you want CDN URLs in article HTML.
 
 ## Pages
 
