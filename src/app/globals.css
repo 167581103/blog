@@ -933,26 +933,43 @@ textarea {
   top: 0;
   z-index: 10;
   display: grid;
-  /* Equal side rails keep the title optically centered. */
-  grid-template-columns: minmax(12rem, 1fr) minmax(0, 2.5fr) minmax(9.5rem, 1fr);
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 1rem;
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(10px);
+  /* Home / simple bars: back | title | action */
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+/* Article edit: back | column | title | state+actions */
+.editor-bar-article {
+  /* Side rails keep the title optically centered on desktop. */
+  grid-template-columns: auto minmax(7rem, 1fr) minmax(0, 2.5fr) minmax(9.5rem, 1fr);
 }
 
 @media (max-width: 640px) {
   .editor-bar {
-    /* Auto side rails: avoid forcing mins that squeeze/overflow the title. */
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    gap: 0.45rem;
+    gap: 0.4rem;
     padding: 0.65rem 0.75rem;
   }
 
-  .category-picker {
-    max-width: 6.5rem;
+  .editor-bar-article {
+    /*
+      Proportional slots: column + title share the middle;
+      state + icon actions stay readable on the right.
+    */
+    grid-template-columns: auto minmax(0, 0.9fr) minmax(0, 1.15fr) auto;
   }
+
+  .editor-bar-article:has(.editor-title-field.is-editing) {
+    /* Give the expanded title input more of the middle while editing. */
+    grid-template-columns: auto minmax(0, 0.55fr) minmax(0, 1.6fr) auto;
+  }
+}
+
+.editor-bar-back {
+  justify-self: start;
 }
 
 .editor-bar-start {
@@ -967,6 +984,8 @@ textarea {
   position: relative;
   min-width: 0;
   max-width: 14rem;
+  width: 100%;
+  justify-self: stretch;
 }
 
 .category-picker-field {
@@ -990,7 +1009,21 @@ textarea {
   font-size: 0.85rem;
   letter-spacing: -0.01em;
   color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+@media (max-width: 640px) {
+  .editor-bar-article .category-picker {
+    max-width: none;
+  }
+
+  .editor-bar-article .category-picker-input {
+    min-width: 0;
+    font-size: 0.8rem;
+  }
 }
 
 .category-picker:hover .category-picker-input,
@@ -1164,6 +1197,17 @@ textarea {
   }
 }
 
+.editor-title-field {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  justify-self: stretch;
+}
+
+.editor-title-compact {
+  display: none;
+}
+
 .editor-title {
   width: 100%;
   min-width: 0;
@@ -1175,30 +1219,62 @@ textarea {
   font-size: 1.05rem;
   font-weight: 500;
   letter-spacing: -0.02em;
-  /* Soft right-edge fade so long titles don’t collide with save stamp / icons. */
-  overflow: hidden;
-  -webkit-mask-image: linear-gradient(
-    to right,
-    #000 0%,
-    #000 calc(100% - 1.35rem),
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    to right,
-    #000 0%,
-    #000 calc(100% - 1.35rem),
-    transparent 100%
-  );
-}
-
-.editor-title:focus {
-  /* While editing, show the full field edge so caret/typing aren’t clipped. */
-  -webkit-mask-image: none;
-  mask-image: none;
 }
 
 .editor-title::placeholder {
   color: #b0b0b0;
+}
+
+@media (max-width: 640px) {
+  .editor-title-compact {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 0.15rem 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--foreground);
+    font-family: var(--font-display), sans-serif;
+    font-size: 1.05rem;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    text-align: center;
+    cursor: pointer;
+  }
+
+  .editor-title-compact.is-placeholder {
+    color: #b0b0b0;
+  }
+
+  .editor-title-compact-text {
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .editor-title-field:not(.is-editing) .editor-title {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .editor-title-field.is-editing .editor-title-compact {
+    display: none;
+  }
+
+  .editor-title-field.is-editing .editor-title {
+    position: static;
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 .editor-body {
