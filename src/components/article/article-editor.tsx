@@ -324,7 +324,7 @@ export function ArticleEditor({
           }}
         />
         <div className="editor-bar-actions">
-          <EditorSaveMeta stamp={editStamp} />
+          <EditorSaveMeta stamp={editStamp} pulseKey={lastSavedAt} />
           {slug ? (
             <DeleteControl disabled={busy} busy={pending} onConfirm={remove} />
           ) : null}
