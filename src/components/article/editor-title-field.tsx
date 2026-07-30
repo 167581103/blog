@@ -20,7 +20,16 @@ export function EditorTitleField({
   "aria-label": ariaLabel = "Title",
 }: Props) {
   const [editing, setEditing] = useState(false);
+  const [compactViewport, setCompactViewport] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 640px)");
+    const sync = () => setCompactViewport(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
 
   useEffect(() => {
     if (!editing) return;
@@ -31,19 +40,21 @@ export function EditorTitleField({
     el.setSelectionRange(len, len);
   }, [editing]);
 
+  const collapsedMobile = compactViewport && !editing;
+  const label = value || placeholder;
+
   return (
     <div className={`editor-title-field${editing ? " is-editing" : ""}`}>
       <button
         type="button"
         className={`editor-title-compact${value ? "" : " is-placeholder"}`}
-        tabIndex={editing ? -1 : 0}
-        aria-label={ariaLabel}
-        title={value || placeholder}
+        tabIndex={collapsedMobile ? 0 : -1}
+        aria-hidden={collapsedMobile ? undefined : true}
+        aria-label={value ? undefined : ariaLabel}
+        title={label}
         onClick={() => setEditing(true)}
       >
-        <span className="editor-title-compact-text">
-          {value || placeholder}
-        </span>
+        <span className="editor-title-compact-text">{label}</span>
       </button>
       <input
         ref={inputRef}
@@ -51,6 +62,8 @@ export function EditorTitleField({
         value={value}
         placeholder={placeholder}
         aria-label={ariaLabel}
+        aria-hidden={collapsedMobile ? true : undefined}
+        tabIndex={collapsedMobile ? -1 : undefined}
         onChange={(event) => onChange(event.target.value)}
         onFocus={() => setEditing(true)}
         onBlur={() => setEditing(false)}
