@@ -942,6 +942,19 @@ textarea {
   backdrop-filter: blur(10px);
 }
 
+@media (max-width: 640px) {
+  .editor-bar {
+    /* Auto side rails: avoid forcing mins that squeeze/overflow the title. */
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 0.45rem;
+    padding: 0.65rem 0.75rem;
+  }
+
+  .category-picker {
+    max-width: 6.5rem;
+  }
+}
+
 .editor-bar-start {
   display: inline-flex;
   align-items: center;
@@ -1108,6 +1121,8 @@ textarea {
 }
 
 .editor-bar-actions {
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   gap: 0.1rem;
@@ -1134,6 +1149,15 @@ textarea {
   opacity: 1;
 }
 
+@media (max-width: 640px) {
+  .editor-save-meta {
+    /* Narrower stamp on phones; still holds “Just now” without eating the title. */
+    width: 4.75rem;
+    margin-right: 0.05rem;
+    font-size: 0.7rem;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .editor-save-meta {
     transition: none;
@@ -1151,6 +1175,26 @@ textarea {
   font-size: 1.05rem;
   font-weight: 500;
   letter-spacing: -0.02em;
+  /* Soft right-edge fade so long titles don’t collide with save stamp / icons. */
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(
+    to right,
+    #000 0%,
+    #000 calc(100% - 1.35rem),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    #000 0%,
+    #000 calc(100% - 1.35rem),
+    transparent 100%
+  );
+}
+
+.editor-title:focus {
+  /* While editing, show the full field edge so caret/typing aren’t clipped. */
+  -webkit-mask-image: none;
+  mask-image: none;
 }
 
 .editor-title::placeholder {
