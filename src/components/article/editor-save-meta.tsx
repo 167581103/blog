@@ -29,7 +29,7 @@ export function EditorSaveMeta({ stamp }: Props) {
   return (
     <span
       className={`editor-save-meta${visible ? " is-visible" : ""}`}
-      title="Last saved"
+      title={display ? `Last saved · ${display}` : "Last saved"}
       aria-live="polite"
     >
       {display ?? ""}

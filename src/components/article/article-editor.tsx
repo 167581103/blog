@@ -19,6 +19,7 @@ import { DeleteControl } from "../chrome/delete-control";
 import { CategoryPicker, type CategoryPickerHandle } from "./category-picker";
 import { ArticleOutline } from "./article-outline";
 import { EditorSaveMeta } from "./editor-save-meta";
+import { EditorTitleField } from "./editor-title-field";
 import { formatEditStamp } from "@/lib/format-time";
 import type { Article, ArticleStatus, Category } from "@/lib/types";
 
@@ -288,47 +289,40 @@ export function ArticleEditor({
 
   return (
     <div className="editor-shell">
-      <header className="editor-bar">
-        <div className="editor-bar-start">
-          <Link
-            href={backHref}
-            prefetch
-            aria-label="Back"
-            title="Back"
-            className="icon-btn icon-btn-motion"
-          >
-            <ChevronLeftIcon className="h-5 w-5" />
-          </Link>
-          <CategoryPicker
-            ref={categoryPickerRef}
-            categories={categories}
-            value={categorySlug}
-            articleCounts={articleCounts}
-            onChange={setCategorySlug}
-            onCategoriesChange={(next) => {
-              setCategories(next);
-              setArticleCounts((current) => {
-                const pruned: Record<string, number> = {};
-                for (const category of next) {
-                  pruned[category.slug] = current[category.slug] ?? 0;
-                }
-                return pruned;
-              });
-            }}
-          />
-        </div>
-
-        <input
-          className="editor-title"
+      <header className="editor-bar editor-bar-article">
+        <Link
+          href={backHref}
+          prefetch
+          aria-label="Back"
+          title="Back"
+          className="icon-btn icon-btn-motion editor-bar-back"
+        >
+          <ChevronLeftIcon className="h-5 w-5" />
+        </Link>
+        <CategoryPicker
+          ref={categoryPickerRef}
+          categories={categories}
+          value={categorySlug}
+          articleCounts={articleCounts}
+          onChange={setCategorySlug}
+          onCategoriesChange={(next) => {
+            setCategories(next);
+            setArticleCounts((current) => {
+              const pruned: Record<string, number> = {};
+              for (const category of next) {
+                pruned[category.slug] = current[category.slug] ?? 0;
+              }
+              return pruned;
+            });
+          }}
+        />
+        <EditorTitleField
           value={title}
-          onChange={(e) => {
-            setTitle(e.target.value);
+          onChange={(next) => {
+            setTitle(next);
             setDirty(true);
           }}
-          placeholder="Title"
-          aria-label="Title"
         />
-
         <div className="editor-bar-actions">
           <EditorSaveMeta stamp={editStamp} />
           {slug ? (
