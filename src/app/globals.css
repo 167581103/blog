@@ -1207,24 +1207,42 @@ textarea {
 @media (max-width: 640px) {
   .editor-bar .editor-save-meta {
     /*
-      Keep aria-live announcements, but remove the fixed-width stamp from
-      the layout — icons already cover save/release on phones.
+      Collapsed by default so Column/Title keep the middle.
+      After a save, .is-flashing briefly borrows title room with a soft ease.
     */
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
+    width: 0;
+    max-width: 0;
+    margin-right: 0;
     padding: 0;
     overflow: hidden;
-    clip: rect(0, 0, 0, 0);
     white-space: nowrap;
-    border: 0;
-    opacity: 1;
+    font-size: 0.7rem;
+    letter-spacing: 0.01em;
+    color: #b0b0b0;
+    pointer-events: none;
+    opacity: 0 !important;
+    transition:
+      max-width 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+      width 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+      margin-right 0.4s ease,
+      opacity 0.45s ease;
+  }
+
+  .editor-bar .editor-save-meta.is-flashing {
+    width: 4.5rem;
+    max-width: 4.5rem;
+    margin-right: 0.15rem;
+    /* Faint — status, not chrome that competes with the title. */
+    opacity: 0.62 !important;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .editor-save-meta {
+    transition: none;
+  }
+
+  .editor-bar .editor-save-meta {
     transition: none;
   }
 }
