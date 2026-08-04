@@ -21,7 +21,10 @@ export function EditorTitleField({
 }: Props) {
   const [editing, setEditing] = useState(false);
   const [compactViewport, setCompactViewport] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  /** Only the label tap parks the caret at the end. */
+  const fromLabelRef = useRef(false);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 640px)");
@@ -35,16 +38,24 @@ export function EditorTitleField({
     if (!editing) return;
     const el = inputRef.current;
     if (!el) return;
+    // Tapped or dragged straight into the input — leave that caret alone.
+    if (document.activeElement === el) return;
     el.focus();
-    const len = el.value.length;
-    el.setSelectionRange(len, len);
+    if (fromLabelRef.current) {
+      fromLabelRef.current = false;
+      const len = el.value.length;
+      el.setSelectionRange(len, len);
+    }
   }, [editing]);
 
   const collapsedMobile = compactViewport && !editing;
   const label = value || placeholder;
 
   return (
-    <div className={`editor-title-field${editing ? " is-editing" : ""}`}>
+    <div
+      ref={wrapRef}
+      className={`editor-title-field${editing ? " is-editing" : ""}`}
+    >
       <button
         type="button"
         className={`editor-title-compact${value ? "" : " is-placeholder"}`}
@@ -52,7 +63,10 @@ export function EditorTitleField({
         aria-hidden={collapsedMobile ? undefined : true}
         aria-label={value ? undefined : ariaLabel}
         title={label}
-        onClick={() => setEditing(true)}
+        onClick={() => {
+          fromLabelRef.current = true;
+          setEditing(true);
+        }}
       >
         <span className="editor-title-compact-text">{label}</span>
       </button>
@@ -64,9 +78,22 @@ export function EditorTitleField({
         aria-label={ariaLabel}
         aria-hidden={collapsedMobile ? true : undefined}
         tabIndex={collapsedMobile ? -1 : undefined}
+        enterKeyHint="done"
         onChange={(event) => onChange(event.target.value)}
         onFocus={() => setEditing(true)}
-        onBlur={() => setEditing(false)}
+        onBlur={() => {
+          // Selection handles and keyboard churn can fire a transient blur.
+          window.setTimeout(() => {
+            if (wrapRef.current?.contains(document.activeElement)) return;
+            setEditing(false);
+          }, 0);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === "Escape") {
+            event.preventDefault();
+            event.currentTarget.blur();
+          }
+        }}
       />
     </div>
   );
