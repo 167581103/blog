@@ -985,8 +985,19 @@ textarea {
     grid-template-columns: auto minmax(0, 0.9fr) minmax(5.5rem, 1.4fr) auto;
   }
 
+  /*
+    Editing the title: collapse the column track to zero so the input gets a
+    surface wide enough to drag the caret through. Back and the action icons
+    stay put; the picker keeps its state and returns on blur.
+  */
   .editor-bar-article:has(.editor-title-field.is-editing) {
-    grid-template-columns: auto minmax(0, 0.5fr) minmax(7rem, 1.9fr) auto;
+    grid-template-columns: auto 0 minmax(0, 1fr) auto;
+  }
+
+  .editor-bar-article:has(.editor-title-field.is-editing) .category-picker {
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
   }
 }
 
@@ -1251,6 +1262,8 @@ textarea {
   font-size: 1.05rem;
   font-weight: 500;
   letter-spacing: -0.02em;
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .editor-title::placeholder {
@@ -1276,6 +1289,10 @@ textarea {
     letter-spacing: -0.02em;
     text-align: center;
     cursor: pointer;
+    /* Long-press should open the field, not try to select the label. */
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
   }
 
   .editor-title-compact.is-placeholder {
@@ -1306,6 +1323,16 @@ textarea {
     position: static;
     opacity: 1;
     pointer-events: auto;
+    /*
+      Left-aligned so a long title scrolls predictably under the caret, and
+      16px so iOS doesn't zoom on focus — both are needed for drag to land
+      where the finger is.
+    */
+    text-align: left;
+    min-height: 2rem;
+    padding: 0.15rem 0.3rem;
+    border-bottom: 1px solid var(--foreground);
+    font-size: 1rem;
   }
 }
 
