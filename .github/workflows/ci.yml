@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, staging]
+  push:
+    branches: [main, staging]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Lint · typecheck · build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        # Advisory until existing eslint debt is cleared; typecheck + build gate merges.
+        continue-on-error: true
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+        env:
+          # Auth.js / Next need these present at build for some pages;
+          # values are placeholders — CI does not hit real OAuth or DB.
+          AUTH_SECRET: ci-build-secret-not-for-production
+          AUTH_GITHUB_ID: ci-github-id
+          AUTH_GITHUB_SECRET: ci-github-secret
+          ADMIN_GITHUB_USERNAME: 167581103
+          AUTH_URL: https://example.com
+          # Skip live storage during CI build when pages touch env.
+          DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci
