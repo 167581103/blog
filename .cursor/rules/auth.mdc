@@ -1,0 +1,15 @@
+---
+description: Auth.js / GitHub OAuth configuration pitfalls for prod and staging
+globs: src/lib/auth.ts,src/app/api/auth/**/*,src/app/login/**/*,.env*
+alwaysApply: false
+---
+
+# Auth
+
+- Staging and production each have their **own** GitHub OAuth App (one callback URL per App).
+- `AUTH_URL` = site **origin only** (`https://www.chenguo.dev` or `https://staging.chenguo.dev`). Never include `/api/auth/...`.
+- Staging callback: `https://staging.chenguo.dev/api/auth/callback/github`
+- Keep `trustHost: true` and `normalizeAuthUrl()` in `src/lib/auth.ts`.
+- Do not add `AUTH_REDIRECT_PROXY_URL` for the staging model.
+- Preview env must not use production `AUTH_URL`.
+- `ADMIN_GITHUB_USERNAME` gates writes; any signed-in GitHub user may comment.

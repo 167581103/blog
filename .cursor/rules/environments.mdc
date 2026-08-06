@@ -1,0 +1,14 @@
+---
+description: Production vs staging environments, deploy flow, and Vercel env targets
+alwaysApply: true
+---
+
+# Environments
+
+- **Production**: git `main` → https://www.chenguo.dev (Vercel Production env)
+- **Staging**: git `staging` → https://staging.chenguo.dev (Vercel **Preview** env)
+- PR `*.vercel.app`: UI smoke only; do login/write tests on staging
+
+Do not invent a third long-lived hostname unless asked. Do not re-implement deploys in GitHub Actions; Vercel Git integration owns runtime deploys. CI is lint/typecheck/build only.
+
+When changing auth, DB writes, uploads, or env handling: verify on staging before merging to `main`. See `docs/staging.md`.

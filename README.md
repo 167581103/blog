@@ -80,7 +80,7 @@ Merge flow: **PR → CI (+ optional `*.vercel.app` UI smoke) → `staging` → `
 - Staging has its **own** GitHub OAuth App + `AUTH_URL` (different callback from production)
 - GitHub Actions gates merges; Vercel deploys the `staging` / `main` branches
 
-Full checklist: [docs/staging.md](docs/staging.md).
+Full checklist: [docs/staging.md](docs/staging.md). Agent / Cursor conventions: [AGENTS.md](AGENTS.md).
 
 ```bash
 SMOKE_BASE_URL=https://staging.chenguo.dev npm run smoke
