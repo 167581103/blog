@@ -1062,7 +1062,13 @@ textarea {
   width: 100%;
   min-width: 4.5rem;
   margin: 0;
-  padding: 0.15rem 0;
+  /*
+    No padding and a tight line box: the underline then rides just under the
+    text so the column reads as vertically centred against the back button.
+    Slack below the text pushed the whole control ~3px low.
+  */
+  padding: 0;
+  line-height: 1.25;
   border: 0;
   border-bottom: 1px solid transparent;
   border-radius: 0;

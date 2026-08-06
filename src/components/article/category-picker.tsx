@@ -263,13 +263,19 @@ export const CategoryPicker = forwardRef<CategoryPickerHandle, Props>(
           <input
             className="category-picker-input"
             value={text}
-            disabled={busy || switching}
+            disabled={busy}
             placeholder="Column"
             aria-label="Article column"
             aria-autocomplete="list"
             aria-controls={listId}
             aria-expanded={open}
             onChange={(event) => {
+              // Typing outranks an armed switch — otherwise emptying the field
+              // arms Loose and leaves nothing that accepts input.
+              if (pendingRef.current !== undefined) {
+                setPending(undefined);
+                pendingRef.current = undefined;
+              }
               setText(event.target.value);
               textRef.current = event.target.value;
             }}
@@ -383,7 +389,7 @@ export const CategoryPicker = forwardRef<CategoryPickerHandle, Props>(
                 </li>
               );
             })}
-            <li>
+            <li className="category-picker-row">
               <button
                 type="button"
                 role="option"
