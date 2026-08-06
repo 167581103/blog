@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="20 15 92 92" fill="none">
+  <!-- Same mark as public/brand/mark-c.svg, cropped tight and stroked
+       heavier so it still reads at 16px. -->
+  <g transform="translate(12 0) skewX(-11)">
+    <path
+      d="M97 34
+         C93 26 83 21 72 23
+         C51 26 33 45 32 67
+         C31 88 45 103 63 101
+         C77 100 88 93 94 84
+         C96.1 80.9 97.2 78.6 98 77"
+      stroke="#111111"
+      stroke-width="10"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  </g>
+</svg>
