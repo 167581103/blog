@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 128" fill="none" role="img" aria-label="cg">
+  <!-- Optional connected cg ligature  wider placements only -->
+  <path
+    d="M52 40
+       C46 28 32 24 22 32
+       C12 40 10 56 18 68
+       C24 78 38 84 48 76
+       C54 72 58 64 60 56
+       C62 44 68 34 80 32
+       C94 30 106 40 108 54
+       C110 70 100 86 86 92
+       C78 96 72 102 74 112
+       C76 120 88 118 96 112
+       C104 106 112 98 116 90"
+    stroke="#111111"
+    stroke-width="7"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

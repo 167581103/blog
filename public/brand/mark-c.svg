@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none" role="img" aria-label="c">
+  <!-- Monoline handwritten c  primary mark for chenguo.dev -->
+  <path
+    d="M90 38
+       C82 24 62 18 46 26
+       C28 36 20 58 26 78
+       C32 98 54 110 76 102
+       C84 99 90 92 92 86"
+    stroke="#111111"
+    stroke-width="7"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>
