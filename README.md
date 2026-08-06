@@ -72,18 +72,18 @@ npm run db:push
 npm run dev
 ```
 
-## Preview & CI
+## Staging & CI
 
-Merge flow: **PR → Vercel `*.vercel.app` + GitHub Actions CI → `preview` → `main`**.
+Merge flow: **PR → CI (+ optional `*.vercel.app` UI smoke) → `staging` → `main`**.
 
-- GitHub Actions (`.github/workflows/ci.yml`) runs lint, typecheck, and build. Prefer requiring that check on `main`.
-- Vercel owns deploys. Fixed test site: **`https://preview.chenguo.dev`** (git branch `preview`).
-- Login on the fixed preview uses `AUTH_REDIRECT_PROXY_URL` (see guide). Do not set production `AUTH_URL` on Preview.
+- Fixed test site: **`https://staging.chenguo.dev`** (git branch `staging`)
+- Staging has its **own** GitHub OAuth App + `AUTH_URL` (different callback from production)
+- GitHub Actions gates merges; Vercel deploys the `staging` / `main` branches
 
-Full checklist: [docs/preview.md](docs/preview.md).
+Full checklist: [docs/staging.md](docs/staging.md).
 
 ```bash
-SMOKE_BASE_URL=https://preview.chenguo.dev npm run smoke
+SMOKE_BASE_URL=https://staging.chenguo.dev npm run smoke
 ```
 
 ## Author tips
