@@ -1,0 +1,13 @@
+---
+description: Neon / S3 / Blob storage model for this blog
+globs: src/lib/storage/**/*,src/db/**/*,src/app/api/**/*
+alwaysApply: false
+---
+
+# Storage
+
+- **Source of truth for article JSON**: Neon `documents` (not Blob).
+- **Media**: prefer S3 Access Point (`S3_ACCESS_POINT_ARN` + AWS creds). Serve via `/api/media/...` unless `S3_PUBLIC_BASE_URL` is set.
+- **Blob**: legacy read/import only — do not add new Blob-first write paths.
+- Staging should use a Neon **branch** `DATABASE_URL` on Preview so writes do not hit production.
+- Do not commit secrets; use `.env.example` as the template.

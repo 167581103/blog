@@ -1,163 +1,117 @@
-# Staging & preview test environment
+# Staging environment (`staging.chenguo.dev`)
 
-This blog already deploys via **Vercel Git integration**. We do **not** re-implement
-deploy in GitHub Actions. Actions only gate merges (lint / typecheck / build).
+Fixed pre-production site with **its own GitHub OAuth callback** — not a
+redirect proxy through production.
 
 ```
-feature branch ──▶ PR
-                   ├─ GitHub Actions CI (required)
-                   └─ Vercel Preview URL (auto)
-                         │  smoke UI / public pages
-                         ▼
-              merge → staging branch
-                   └─ https://staging.<your-domain>
-                         │  full auth + write flows
-                         ▼
+feature PR ──▶ CI + optional *.vercel.app (UI smoke only)
+                 │
+                 ▼
+        merge / push → staging
+                 └─ https://staging.chenguo.dev
+                    own AUTH_URL + own OAuth App + Neon branch
+                 │
+                 ▼
               merge → main
-                   └─ https://www.<your-domain>  (production)
+                 └─ https://www.chenguo.dev
 ```
 
-## Why not “Actions deploys everything”?
+| | Production | Staging |
+| --- | --- | --- |
+| Git | `main` | `staging` |
+| URL | `www.chenguo.dev` | `staging.chenguo.dev` |
+| OAuth App | Prod callback | **Second** App → staging callback |
+| `AUTH_URL` | `https://www.chenguo.dev` | `https://staging.chenguo.dev` |
+| DB | Prod Neon | Neon **branch** `staging` |
 
-Vercel already builds Preview + Production from Git. Duplicating `vercel deploy`
-in Actions adds tokens and drift for little gain on a solo blog.
-
-Use Actions for **quality gates**; use Vercel for **runtime environments**.
-
-## Environments
-
-| Env | Git | URL | Auth | Data |
-| --- | --- | --- | --- | --- |
-| **Production** | `main` | `www.chenguo.dev` | Prod GitHub OAuth App + `AUTH_URL` | Prod Neon + S3 |
-| **Staging** | `staging` | `staging.chenguo.dev` | Staging OAuth App **or** redirect proxy | Neon **branch** (not prod) |
-| **Preview** | PR branches | `*.vercel.app` | Prefer redirect proxy; skip write tests | Same Preview DB as Staging (Hobby) or Custom Env |
-
-Hobby-plan note: Vercel Preview env vars are shared by all non-production
-deployments (PR previews **and** the `staging` branch) unless you add a
-[Custom Environment](https://vercel.com/docs/deployments/environments). That is
-fine for a personal blog if Staging uses a non-prod Neon branch and you treat
-PR write-tests as optional.
+Hobby note: Vercel **Preview** env vars are shared by the `staging` branch and
+PR `*.vercel.app` deployments (Custom Environments need a higher plan). Put
+staging Auth on **Preview**, and treat PR URLs as UI-only — do login tests on
+`staging.chenguo.dev`.
 
 ---
 
-## One-time setup checklist
+## Already wired
 
-### 1. Long-lived `staging` branch
+- [x] Git branch `staging`
+- [x] Vercel domain `staging.chenguo.dev` → branch `staging`
+- [x] CI runs on `main` / `staging`
 
-```bash
-git checkout main
-git pull
-git checkout -b staging
-git push -u origin staging
-```
+---
 
-In GitHub → Settings → Branches:
+## Finish setup (you)
 
-- Protect `main`: require PR + require CI status check `Lint · typecheck · build`
-  (typecheck + build must pass; lint is currently advisory)
-- Optionally protect `staging` the same way
+### 1. DNS (Cloudflare)
 
-### 2. Domain on Vercel
+| Type | Name | Target | Proxy |
+| --- | --- | --- | --- |
+| CNAME | `staging` | `9e6efb97d0c2c468.vercel-dns-017.com` | DNS only |
 
-Project → **Domains**:
+(Alternate target Vercel accepts: `cname.vercel-dns.com`.)
 
-- `www.chenguo.dev` → Production (`main`)
-- `staging.chenguo.dev` → Git branch `staging`
+### 2. Second GitHub OAuth App
 
-DNS: CNAME `staging` → `cname.vercel-dns.com` (or follow Vercel’s prompt).
+GitHub → Settings → Developer settings → **OAuth Apps → New**:
 
-### 3. Neon database for Staging / Preview
-
-Do **not** point Preview/Staging at production `DATABASE_URL`.
-
-1. Neon console → create a **branch** from production (e.g. `staging`)
-2. Copy that branch connection string
-3. In Vercel → Environment Variables → set `DATABASE_URL` for **Preview** only
-   to the staging branch URL (Production keeps the prod URL)
-4. Push schema once:
-
-```bash
-DATABASE_URL='postgresql://…staging…' npm run db:push
-```
-
-### 4. Auth (pick one)
-
-GitHub OAuth Apps allow **one** callback URL. Ephemeral `*.vercel.app` URLs
-cannot all be registered.
-
-#### Option A — Staging OAuth App (stable URL)
-
-Create a second GitHub OAuth App:
-
-- Homepage: `https://staging.chenguo.dev`
-- Callback: `https://staging.chenguo.dev/api/auth/callback/github`
-
-Vercel env (Preview / Staging):
-
-| Var | Value |
+| Field | Value |
 | --- | --- |
-| `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET` | Staging OAuth App |
-| `AUTH_SECRET` | New secret (or shared with prod if you also use Option B) |
-| `AUTH_URL` | `https://staging.chenguo.dev` **only if** Custom Environment scopes it to `staging`; otherwise **leave unset** on Preview and rely on `trustHost` |
+| Application name | `blog staging` |
+| Homepage URL | `https://staging.chenguo.dev` |
+| Authorization callback URL | `https://staging.chenguo.dev/api/auth/callback/github` |
 
-PR Previews still will not share that exact callback — use them for UI smoke;
-run login/write tests on `staging.chenguo.dev`.
+Copy Client ID + generate Client Secret.
 
-#### Option B — Auth.js redirect proxy (every Preview can sign in)
+### 3. Vercel env vars for **Preview** (staging branch uses these)
 
-Keep the **production** OAuth App callback as:
+Project → Settings → Environment Variables.
 
-`https://www.chenguo.dev/api/auth/callback/github`
+| Key | Preview value | Notes |
+| --- | --- | --- |
+| `AUTH_URL` | `https://staging.chenguo.dev` | Preview only — **not** Production |
+| `AUTH_GITHUB_ID` | staging OAuth Client ID | Preview only |
+| `AUTH_GITHUB_SECRET` | staging OAuth secret | Preview only |
+| `AUTH_SECRET` | `openssl rand -base64 32` | New secret OK; Preview only |
+| `ADMIN_GITHUB_USERNAME` | `167581103` | already ok if shared |
+| `DATABASE_URL` | Neon **staging** branch URL | Preview only; Production keeps prod |
+| `S3_*` / `AWS_*` | can share prod for now | optional later split |
 
-On **Preview** (and Staging if it uses Preview env):
+Production keeps the original OAuth App + `AUTH_URL=https://www.chenguo.dev`.
 
-```bash
-# Do NOT set AUTH_URL to production on Preview
-AUTH_REDIRECT_PROXY_URL=https://www.chenguo.dev/api/auth
+After saving: **Redeploy** the `staging` deployment (Deployments → … → Redeploy). Env changes do nothing until the next build.
+
+### Auth pitfall
+
+`AUTH_URL` must be the **origin only**:
+
+```text
+https://staging.chenguo.dev
 ```
 
-Use the **same** `AUTH_SECRET` and GitHub OAuth credentials as Production.
-Auth.js completes OAuth on production, then hands the session back to the
-Preview host. The app already sets `trustHost: true`.
+If you paste the full callback URL into `AUTH_URL`, Auth.js breaks and `/api/auth/*` returns 400/500 (“This page can’t be found” on sign-in). Fix the var and redeploy.
 
-### 5. S3 / Blob
+### 4. Neon staging database
 
-Reuse the same Access Point for Staging is OK for a personal site. Prefer a
-key prefix convention mentally (`uploads/` stays shared) and avoid deleting
-prod media from Staging. A separate bucket is optional later.
-
-### 6. CI required check
-
-After the first green run of `.github/workflows/ci.yml`:
-
-GitHub → Settings → Branches → `main` → Require status checks → select
-**Lint · typecheck · build**.
+1. Neon → Branch → create `staging` from production  
+2. Copy connection string into Preview `DATABASE_URL`  
+3. `DATABASE_URL='…staging…' npm run db:push`
 
 ---
 
-## Day-to-day workflow
+## Daily flow
 
-1. Open a PR → wait for **CI** + Vercel Preview
-2. Click the Preview link → check public pages / layout
-3. If you changed login, editor, or DB writes → merge (or push) to `staging`
-   and test on `https://staging.chenguo.dev`
-4. Merge `staging` → `main` (or PR `staging` into `main`) for production
-
-Optional smoke against a live URL:
+```bash
+# land work on staging first
+git checkout staging
+git merge your-feature   # or merge the PR into staging
+git push origin staging
+# test https://staging.chenguo.dev (sign-in, write, upload)
+# then PR staging → main (or merge feature to main after staging OK)
+```
 
 ```bash
 SMOKE_BASE_URL=https://staging.chenguo.dev npm run smoke
 ```
 
----
-
-## What this repo ships
-
-| Path | Role |
-| --- | --- |
-| `.github/workflows/ci.yml` | Typecheck + build gate on PR / push to `main` & `staging` (lint runs advisory until debt is cleared) |
-| `scripts/smoke.mjs` | Cheap HTTP smoke for Staging or a Preview URL |
-| `.env.example` | Documents Preview / Staging auth vars |
-
-Manual pieces (Vercel domain, Neon branch, OAuth App, branch protection) stay
-in your dashboards — they cannot be fully automated from the app repo alone.
+Why a second OAuth App? GitHub allows **one** callback URL per App. Staging’s
+callback is `staging.chenguo.dev/...`, production’s is `www.chenguo.dev/...` —
+they cannot share one App cleanly.

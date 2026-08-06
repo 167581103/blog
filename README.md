@@ -74,16 +74,15 @@ npm run dev
 
 ## Staging & CI
 
-Merge flow: **PR → Vercel Preview + GitHub Actions CI → `staging` → `main`**.
+Merge flow: **PR → CI (+ optional `*.vercel.app` UI smoke) → `staging` → `main`**.
 
-- GitHub Actions (`.github/workflows/ci.yml`) runs lint, typecheck, and build. Prefer requiring that check on `main`.
-- Vercel still owns Preview / Production deploys — do not duplicate deploy in Actions.
-- Use a fixed Staging domain (e.g. `staging.chenguo.dev` on branch `staging`) for login and write tests; GitHub OAuth only allows one callback URL, so ephemeral Preview URLs need either a staging domain or `AUTH_REDIRECT_PROXY_URL`.
+- Fixed test site: **`https://staging.chenguo.dev`** (git branch `staging`)
+- Staging has its **own** GitHub OAuth App + `AUTH_URL` (different callback from production)
+- GitHub Actions gates merges; Vercel deploys the `staging` / `main` branches
 
-Full checklist: [docs/staging.md](docs/staging.md).
+Full checklist: [docs/staging.md](docs/staging.md). Agent / Cursor conventions: [AGENTS.md](AGENTS.md).
 
 ```bash
-# After Staging is live:
 SMOKE_BASE_URL=https://staging.chenguo.dev npm run smoke
 ```
 
