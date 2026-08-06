@@ -562,6 +562,36 @@ textarea {
   transition: border-color 0.3s ease;
 }
 
+@media (max-width: 640px) {
+  .read-bar {
+    /*
+      Rails size to their icons instead of each holding a 9.5rem floor —
+      on a phone those floors consumed the row and clipped the title to "Fu…".
+    */
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 0.35rem;
+    padding: 0.6rem 0.65rem;
+  }
+
+  .read-bar .icon-btn,
+  .read-bar .account-avatar-btn,
+  .read-bar .delete-control-confirm-btn,
+  .read-bar .skeleton-icon {
+    width: 2rem;
+    height: 2rem;
+  }
+
+  /* Admin column control keeps a small slot; the title takes the rest. */
+  .read-bar .category-picker {
+    max-width: 5.5rem;
+  }
+
+  .read-bar .category-picker-input {
+    min-width: 0;
+    font-size: 0.8rem;
+  }
+}
+
 .read-bar-start {
   display: inline-flex;
   align-items: center;
