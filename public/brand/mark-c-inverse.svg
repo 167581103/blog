@@ -1,14 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none" role="img" aria-label="c">
   <rect width="128" height="128" fill="#111111"/>
-  <path
-    d="M90 38
-       C82 24 62 18 46 26
-       C28 36 20 58 26 78
-       C32 98 54 110 76 102
-       C84 99 90 92 92 86"
-    stroke="#fafafa"
-    stroke-width="7"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-  />
+  <g transform="translate(12 0) skewX(-11)">
+    <path
+      d="M97 34
+         C93 26 83 21 72 23
+         C51 26 33 45 32 67
+         C31 88 45 103 63 101
+         C77 100 88 93 94 84
+         C96.1 80.9 97.2 78.6 98 77"
+      stroke="#fafafa"
+      stroke-width="7"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  </g>
 </svg>
