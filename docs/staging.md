@@ -77,7 +77,17 @@ Project → Settings → Environment Variables.
 
 Production keeps the original OAuth App + `AUTH_URL=https://www.chenguo.dev`.
 
-After saving: **Redeploy** the `staging` deployment.
+After saving: **Redeploy** the `staging` deployment (Deployments → … → Redeploy). Env changes do nothing until the next build.
+
+### Auth pitfall
+
+`AUTH_URL` must be the **origin only**:
+
+```text
+https://staging.chenguo.dev
+```
+
+If you paste the full callback URL into `AUTH_URL`, Auth.js breaks and `/api/auth/*` returns 400/500 (“This page can’t be found” on sign-in). Fix the var and redeploy.
 
 ### 4. Neon staging database
 
