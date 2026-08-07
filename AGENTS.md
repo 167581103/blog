@@ -14,7 +14,7 @@ Guidance for Cursor agents (and humans) working on this personal blog.
 
 ```bash
 npm install
-npm run lint          # advisory; known pre-existing hook/display-name debt
+npm run lint          # must stay clean — CI fails on any error or warning
 npm run typecheck
 npm run build
 npm run db:push       # needs DATABASE_URL
@@ -64,7 +64,7 @@ Without `DATABASE_URL`, public pages may still boot with empty content; writes n
 ## Deploy / CI
 
 - Vercel Git integration owns deploys — do **not** add Actions that `vercel deploy` unless explicitly asked.
-- `.github/workflows/ci.yml` gates with typecheck + build (lint is advisory).
+- `.github/workflows/ci.yml` gates with lint + typecheck + build.
 - Staging branch deployments use Vercel **Preview** env vars (Hobby has no Custom Environments).
 
 ## UI / editor gotchas

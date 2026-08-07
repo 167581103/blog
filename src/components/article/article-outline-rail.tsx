@@ -1,12 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { createPortal } from "react-dom";
 import { extractMarkdownOutline } from "@/lib/markdown-headings";
 
 type Props = {
   content: string;
 };
+
+/** Portals need a client pass; the server snapshot reports "not yet". */
+const subscribeToNothing = () => () => {};
+const onClient = () => true;
+const onServer = () => false;
 
 /**
  * ChatGPT-style side outline rail for the read page.
@@ -19,7 +30,11 @@ export function ArticleOutlineRail({ content }: Props) {
     () => extractMarkdownOutline(content),
     [content],
   );
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    subscribeToNothing,
+    onClient,
+    onServer,
+  );
   const [activeId, setActiveId] = useState<string | null>(null);
   const [visible, setVisible] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -29,14 +44,9 @@ export function ArticleOutlineRail({ content }: Props) {
   const expanded = hovered || pinned;
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (headings.length < 2) {
-      setVisible(false);
-      return;
-    }
+    // Nothing renders below two headings, so leave visibility to the pass
+    // that actually has a rail to show.
+    if (headings.length < 2) return;
 
     const topOutline = document.querySelector(".article-outline");
 

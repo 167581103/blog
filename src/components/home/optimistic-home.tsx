@@ -41,27 +41,24 @@ export function OptimisticHome({
   const [pending, setPending] = useState<Optimistic | null>(() =>
     readOptimistic(),
   );
-  const [t, setT] = useState(() => pending?.title ?? title);
-  const [c, setC] = useState(() => pending?.content ?? content);
+
+  // The server caught up — drop the optimistic copy for good.
+  if (pending && title === pending.title && content === pending.content) {
+    setPending(null);
+  }
+
+  // Keep the just-edited body until the server catches up.
+  const t = pending ? pending.title : title;
+  const c = pending ? pending.content : content;
 
   useEffect(() => {
-    if (pending) {
-      // Keep the just-edited body until the server catches up.
-      if (title === pending.title && content === pending.content) {
-        try {
-          sessionStorage.removeItem("optimistic-home");
-        } catch {
-          // ignore
-        }
-        setPending(null);
-        setT(title);
-        setC(content);
-      }
-      return;
+    if (pending) return;
+    try {
+      sessionStorage.removeItem("optimistic-home");
+    } catch {
+      // ignore
     }
-    setT(title);
-    setC(content);
-  }, [title, content, pending]);
+  }, [pending]);
 
   return (
     <>
