@@ -25,7 +25,8 @@ export const BlogImage = Image.extend({
 
   renderHTML({ HTMLAttributes }) {
     const layout = HTMLAttributes["data-layout"] || "center";
-    const { "data-layout": _layout, ...imgAttrs } = HTMLAttributes;
+    const imgAttrs = { ...HTMLAttributes };
+    delete imgAttrs["data-layout"];
     return [
       "figure",
       {

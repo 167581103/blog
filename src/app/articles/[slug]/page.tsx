@@ -94,6 +94,7 @@ export default async function ArticlePage({ params }: Props) {
           ) : null}
         </div>
         <OptimisticReadTitle
+          key={article.slug}
           slug={article.slug}
           title={liveTitle}
           content={liveContent}
@@ -109,6 +110,7 @@ export default async function ArticlePage({ params }: Props) {
       <main className="read-body">
         <PageFade>
           <OptimisticArticleBody
+            key={article.slug}
             slug={article.slug}
             title={liveTitle}
             content={liveContent}

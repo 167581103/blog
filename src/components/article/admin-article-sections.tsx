@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { PlusIcon } from "../chrome/icons";
 import { DeleteControl } from "../chrome/delete-control";
@@ -69,13 +69,14 @@ export function AdminArticleSections({ articles, layout }: Props) {
     target: null,
     committed: false,
   });
-  const rowsRef = useRef(rows);
-  rowsRef.current = rows;
+  const [syncedLayout, setSyncedLayout] = useState(layout);
 
-  useEffect(() => {
+  // Server sent a new layout — reset the local copy before painting it.
+  if (layout !== syncedLayout) {
+    setSyncedLayout(layout);
     setRows(layout.rows);
     setCategories(layout.categories);
-  }, [layout]);
+  }
 
   const currentLayout: CategoryLayout = { categories, rows };
   const { rows: articleRows, loose } = buildArticleRows(
@@ -85,7 +86,7 @@ export function AdminArticleSections({ articles, layout }: Props) {
   );
 
   async function persistRows(nextRows: string[][]) {
-    const previous = rowsRef.current;
+    const previous = rows;
     setRows(nextRows);
     try {
       const res = await fetch("/api/categories", {
@@ -110,7 +111,7 @@ export function AdminArticleSections({ articles, layout }: Props) {
 
   function armTarget(target: CategoryDropTarget) {
     const slug = sessionRef.current.slug;
-    const currentRows = rowsRef.current;
+    const currentRows = rows;
     if (!slug || isNoopCategoryDrop(currentRows, slug, target)) {
       sessionRef.current.target = null;
       setDropTarget((current) => (current === null ? current : null));
@@ -126,7 +127,7 @@ export function AdminArticleSections({ articles, layout }: Props) {
     const { slug, target, committed } = sessionRef.current;
     if (committed || !slug || !target) return;
     sessionRef.current.committed = true;
-    const currentRows = rowsRef.current;
+    const currentRows = rows;
     const next = placeCategory(currentRows, slug, target);
     if (JSON.stringify(next) !== JSON.stringify(currentRows)) {
       void persistRows(next);

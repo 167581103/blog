@@ -47,9 +47,8 @@ export function DeleteControl({
     };
   }, [armed]);
 
-  useEffect(() => {
-    if (disabled || busy) setArmed(false);
-  }, [disabled, busy]);
+  // Losing the ability to act disarms the control before it paints.
+  if (armed && (disabled || busy)) setArmed(false);
 
   const iconClass = compact ? "h-3.5 w-3.5" : "h-5 w-5";
 

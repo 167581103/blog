@@ -53,7 +53,7 @@ function headingComponents(): Partial<Components> {
   const used = new Set<string>();
 
   function makeHeading(Tag: "h1" | "h2" | "h3"): Components["h1"] {
-    return ({ children, ...props }) => {
+    function Heading({ children, ...props }: { children?: React.ReactNode }) {
       const text = plainHeadingText(
         Array.isArray(children)
           ? children.map(childToText).join("")
@@ -65,7 +65,9 @@ function headingComponents(): Partial<Components> {
           {children}
         </Tag>
       );
-    };
+    }
+    Heading.displayName = `Markdown${Tag.toUpperCase()}`;
+    return Heading;
   }
 
   return {

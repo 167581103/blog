@@ -265,6 +265,7 @@ export const CategoryPicker = forwardRef<CategoryPickerHandle, Props>(
             value={text}
             disabled={busy}
             placeholder="Column"
+            role="combobox"
             aria-label="Article column"
             aria-autocomplete="list"
             aria-controls={listId}
