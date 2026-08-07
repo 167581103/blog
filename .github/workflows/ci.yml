@@ -29,8 +29,6 @@ jobs:
         run: npm ci
 
       - name: Lint
-        # Advisory until existing eslint debt is cleared; typecheck + build gate merges.
-        continue-on-error: true
         run: npm run lint
 
       - name: Typecheck

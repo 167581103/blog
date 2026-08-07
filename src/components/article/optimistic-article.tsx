@@ -51,35 +51,26 @@ function useOptimisticArticle(
   title: string,
   content: string,
 ): { title: string; content: string } {
+  // Callers key these components by slug, so a different article remounts
+  // instead of needing the stored copy re-read here.
   const [pending, setPending] = useState<Optimistic | null>(() =>
     peekOptimisticArticle(slug),
   );
-  const [view, setView] = useState(() => ({
-    title: pending?.title || title,
-    content: pending?.content || content,
-  }));
+
+  // The server caught up — drop the optimistic copy for good.
+  if (pending && title === pending.title && content === pending.content) {
+    setPending(null);
+  }
 
   useEffect(() => {
-    const next = peekOptimisticArticle(slug);
-    setPending(next);
-    if (next) {
-      setView({ title: next.title, content: next.content });
-    }
-  }, [slug]);
+    if (pending) return;
+    clearOptimisticArticle(slug);
+  }, [pending, slug]);
 
-  useEffect(() => {
-    if (pending) {
-      if (title === pending.title && content === pending.content) {
-        clearOptimisticArticle(slug);
-        setPending(null);
-        setView({ title, content });
-      }
-      return;
-    }
-    setView({ title, content });
-  }, [title, content, pending, slug]);
-
-  return view;
+  // Keep the just-edited copy until the server catches up.
+  return pending
+    ? { title: pending.title, content: pending.content }
+    : { title, content };
 }
 
 export function OptimisticReadTitle({

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { CategoryPicker, type CategoryPickerHandle } from "./category-picker";
 import type { Category } from "@/lib/types";
 
@@ -22,19 +22,26 @@ export function ReadCategoryControl({
   const [categories, setCategories] = useState(initialCategories);
   const [categorySlug, setCategorySlug] = useState(initialSlug);
   const [counts, setCounts] = useState(articleCounts);
+  const [synced, setSynced] = useState({
+    categories: initialCategories,
+    slug: initialSlug,
+    counts: articleCounts,
+  });
   const [, startTransition] = useTransition();
 
-  useEffect(() => {
+  // A server refresh outranks the local copy — adopt it before painting.
+  if (initialCategories !== synced.categories) {
+    setSynced((current) => ({ ...current, categories: initialCategories }));
     setCategories(initialCategories);
-  }, [initialCategories]);
-
-  useEffect(() => {
+  }
+  if (initialSlug !== synced.slug) {
+    setSynced((current) => ({ ...current, slug: initialSlug }));
     setCategorySlug(initialSlug);
-  }, [initialSlug]);
-
-  useEffect(() => {
+  }
+  if (articleCounts !== synced.counts) {
+    setSynced((current) => ({ ...current, counts: articleCounts }));
     setCounts(articleCounts);
-  }, [articleCounts]);
+  }
 
   async function persistCategory(next: string | null) {
     const previous = categorySlug;
