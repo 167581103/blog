@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none" role="img" aria-label="chenguo">
+  <!-- App-icon lockup: the mark on a rounded tile, for avatars and any
+       surface that needs its own background. The transform scales the mark to
+       ~57% of the tile and re-centres it on its ink, not on the circle. -->
+  <rect width="128" height="128" rx="30" fill="#111111"/>
+  <g transform="translate(20.91 12.8) scale(0.8)">
+    <path
+      d="M89.72 25.87A46 46 0 1 0 89.72 102.13L89.72 81.3A31 31 0 1 1 89.72 46.7Z"
+      fill="#fafafa"
+    />
+  </g>
+</svg>

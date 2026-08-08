@@ -1,18 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="20 15 92 92" fill="none">
-  <!-- Same mark as public/brand/mark-c.svg, cropped tight and stroked
-       heavier so it still reads at 16px. -->
-  <g transform="translate(12 0) skewX(-11)">
-    <path
-      d="M97 34
-         C93 26 83 21 72 23
-         C51 26 33 45 32 67
-         C31 88 45 103 63 101
-         C77 100 88 93 94 84
-         C96.1 80.9 97.2 78.6 98 77"
-      stroke="#111111"
-      stroke-width="10"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    />
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="6.9 17 94 94" fill="none">
+  <!-- Same construction as public/brand/mark-c.svg with a heavier ring
+       (r29 instead of r31) and less padding, so it still holds at 16px. -->
+  <path
+    d="M89.72 25.87A46 46 0 1 0 89.72 102.13L89.72 77.4A29 29 0 1 1 89.72 50.6Z"
+    fill="#111111"
+  />
 </svg>

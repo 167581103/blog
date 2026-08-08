@@ -1,19 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none" role="img" aria-label="c">
-  <!-- Monoline handwritten c — primary mark for chenguo.dev.
-       skewX gives the pen slant; the underlying curve is deliberately
-       asymmetric so it reads as handwriting, not a geometric arc. -->
-  <g transform="translate(12 0) skewX(-11)">
-    <path
-      d="M97 34
-         C93 26 83 21 72 23
-         C51 26 33 45 32 67
-         C31 88 45 103 63 101
-         C77 100 88 93 94 84
-         C96.1 80.9 97.2 78.6 98 77"
-      stroke="#111111"
-      stroke-width="7"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    />
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="4.9 15 98 98" fill="none" role="img" aria-label="c">
+  <!-- Constructed c: concentric circles r46 / r31 about (64,64), aperture at
+       ±56°. Both terminals are cut on the vertical x=89.72, which is what
+       makes the aperture read as geometry rather than a drawn stroke.
+       viewBox is centred on the ink (x 18–89.72), not on the circle. -->
+  <path
+    d="M89.72 25.87A46 46 0 1 0 89.72 102.13L89.72 81.3A31 31 0 1 1 89.72 46.7Z"
+    fill="#111111"
+  />
 </svg>
