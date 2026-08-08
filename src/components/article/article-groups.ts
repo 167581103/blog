@@ -20,6 +20,13 @@ export function sortArticlesInGroup(
   preferDraftsFirst: boolean,
 ): Article[] {
   return [...items].sort((a, b) => {
+    const aPinned = Boolean(a.pinnedAt);
+    const bPinned = Boolean(b.pinnedAt);
+    if (aPinned !== bPinned) return aPinned ? -1 : 1;
+    if (aPinned && bPinned && a.pinnedAt && b.pinnedAt) {
+      const pinCmp = b.pinnedAt.localeCompare(a.pinnedAt);
+      if (pinCmp !== 0) return pinCmp;
+    }
     if (preferDraftsFirst && a.status !== b.status) {
       return a.status === "draft" ? -1 : 1;
     }

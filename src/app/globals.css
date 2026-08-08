@@ -303,9 +303,59 @@ textarea {
   transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
+.article-link-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.15rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.article-link-row .article-link {
+  flex: 1;
+  min-width: 0;
+  border-bottom: 0;
+}
+
 .article-link:hover {
   opacity: 0.55;
   transform: translateX(2px);
+}
+
+.article-pin-btn {
+  flex: none;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  opacity: 0;
+  cursor: pointer;
+  transition:
+    opacity 0.2s ease,
+    color 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.article-link-row:hover .article-pin-btn,
+.article-pin-btn.is-pinned,
+.article-pin-btn:focus-visible {
+  opacity: 1;
+}
+
+.article-pin-btn:hover,
+.article-pin-btn.is-pinned {
+  color: var(--foreground);
+}
+
+.article-pin-btn:disabled {
+  cursor: not-allowed;
 }
 
 .article-add {

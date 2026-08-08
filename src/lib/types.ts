@@ -24,6 +24,8 @@ export type Article = {
    */
   publishedTitle: string | null;
   publishedContent: string | null;
+  /** When set, article floats to the top of its column (ISO timestamp). */
+  pinnedAt: string | null;
   createdAt: string;
   updatedAt: string;
   publishedAt: string | null;
