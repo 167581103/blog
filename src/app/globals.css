@@ -1483,6 +1483,14 @@ textarea {
   text-align: center;
 }
 
+.login-mark {
+  width: 2.25rem;
+  height: 2.25rem;
+  margin: 0 auto 1.1rem;
+  display: block;
+  color: var(--foreground);
+}
+
 .login-panel h1 {
   margin: 0;
   font-size: 1.5rem;

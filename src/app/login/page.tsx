@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth, signIn } from "@/lib/auth";
+import { BrandMark } from "@/components/chrome/brand-mark";
 import { PageFade } from "@/components/chrome/page-fade";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +27,7 @@ export default async function LoginPage({
     <main className="login-shell">
       <PageFade>
         <div className="login-panel">
+          <BrandMark className="login-mark" />
           <h1>Sign in</h1>
           <p>
             {denied
