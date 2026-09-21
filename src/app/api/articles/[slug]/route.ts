@@ -4,6 +4,7 @@ import {
   deleteArticle,
   getArticle,
   setArticleCategory,
+  setArticlePinned,
   updateArticle,
 } from "@/lib/storage";
 import type { ArticleStatus } from "@/lib/types";
@@ -72,7 +73,11 @@ export async function PUT(request: Request, { params }: Params) {
   }
 }
 
-/** Body: `{ categorySlug: string | null }` — move without touching body. */
+/**
+ * Lightweight metadata updates (no body rewrite):
+ * - `{ categorySlug }` — move between columns
+ * - `{ pinned: boolean }` — pin / unpin within the current column
+ */
 export async function PATCH(request: Request, { params }: Params) {
   const session = await requireAdmin();
   if (!session) {
@@ -80,23 +85,42 @@ export async function PATCH(request: Request, { params }: Params) {
   }
 
   const { slug } = await params;
-  const body = (await request.json()) as { categorySlug?: string | null };
-  if (!Object.prototype.hasOwnProperty.call(body, "categorySlug")) {
+  const body = (await request.json()) as {
+    categorySlug?: string | null;
+    pinned?: boolean;
+  };
+
+  const hasCategory = Object.prototype.hasOwnProperty.call(body, "categorySlug");
+  const hasPinned = Object.prototype.hasOwnProperty.call(body, "pinned");
+
+  if (!hasCategory && !hasPinned) {
     return NextResponse.json(
-      { error: "categorySlug is required" },
+      { error: "categorySlug or pinned is required" },
       { status: 400 },
     );
   }
 
   try {
-    const article = await setArticleCategory(slug, body.categorySlug ?? null);
-    if (!article) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    let article = null;
+
+    if (hasCategory) {
+      article = await setArticleCategory(slug, body.categorySlug ?? null);
+      if (!article) {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+      }
     }
+
+    if (hasPinned) {
+      article = await setArticlePinned(slug, Boolean(body.pinned));
+      if (!article) {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+      }
+    }
+
     return NextResponse.json(article);
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Failed to update category";
+      error instanceof Error ? error.message : "Failed to update article";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
